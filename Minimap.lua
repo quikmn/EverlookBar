@@ -69,6 +69,7 @@ local taken = {}      -- [object] = { points = { {...} }, key, mode, want } whil
 local memo = setmetatable({}, { __mode = "k" }) -- the same record again after a release (hooks are set once)
 local held = {}       -- addon buttons we hold: [button] = { parent, points, strata, level, drag }
 local heldList = {}   -- ordered
+local hooked = setmetatable({}, { __mode = "k" }) -- addon buttons we have hooked (once each)
 local placing = false -- guard against our own SetPoint calls in hooks
 M.stepAside = nil     -- name of the addon that manages the minimap frame
 M.buttonRival = nil   -- name of the addon that collects buttons
@@ -631,145 +632,215 @@ function M.IsAddonButton(obj, name)
 	return true
 end
 
+-- A button can be collected cleanly when it is not protected and has an icon of its own to show.
+local function hasIcon(b)
+	if b.icon and b.icon.GetObjectType then return true end -- LibDBIcon and most others
+	if not b.GetRegions then return false end
+	for _, r in ipairs({ b:GetRegions() }) do
+		if r and r.GetObjectType and r:GetObjectType() == "Texture" then
+			local tex = r.GetTexture and r:GetTexture()
+			if tex ~= nil and not ns.IsSecret(tex) then return true end
+		end
+	end
+	local nt = b.GetNormalTexture and b:GetNormalTexture()
+	return nt ~= nil
+end
+M.HasIcon = hasIcon
+
+local CELL, PAD, TOP = 34, 8, 4
+
 local function relayoutDrawer()
 	if not drawer then return end
 	local cols = math.max(1, math.min(12, tonumber(mdb().drawerCols) or 6))
-	local cell, pad = 32, 6
 	local n = 0
+	local level = (ns.Num(drawer:GetFrameLevel()) or 1) + 5
 	placing = true
 	for _, b in ipairs(heldList) do
 		local info = held[b]
-		if info and not info.hiddenByOwner then
+		if info and not info.hiddenByOwner and b:GetParent() == drawer then
 			local col, row = n % cols, math.floor(n / cols)
 			pcall(function()
 				b:ClearAllPoints()
-				b:SetPoint("CENTER", drawer, "TOPLEFT", pad + col * cell + cell / 2, -pad - row * cell - cell / 2)
+				b:SetPoint("CENTER", drawer, "TOPLEFT", PAD + col * CELL + CELL / 2, -PAD - TOP - row * CELL - CELL / 2)
+				b:SetFrameStrata(drawer:GetFrameStrata())
+				b:SetFrameLevel(level)
+				b:SetAlpha(1)
 			end)
 			n = n + 1
 		end
 	end
 	placing = false
 	local rows = math.max(1, math.ceil(n / cols))
-	drawer:SetSize(pad * 2 + math.min(n, cols) * cell + (n == 0 and cell or 0), pad * 2 + rows * cell)
+	drawer:SetSize(PAD * 2 + math.max(1, math.min(n, cols)) * CELL + (n == 0 and 60 or 0), PAD * 2 + TOP + rows * CELL)
 	drawer.empty:SetShown(n == 0)
-	if drawerToggle then drawerToggle.count = n end
+	if drawerToggle then
+		drawerToggle.count = n
+		drawerToggle:SetShown(mdb().buttons == "drawer" and n > 0)
+		if n == 0 then drawer:Hide() end
+	end
 end
 M.RelayoutDrawer = relayoutDrawer
+
+-- Where the drawer opens: beside the drawer button, on the side of the minimap the button sits on, growing along the
+-- minimap (up from a bottom corner, down from a top corner). Flips sideways when there is no room. Pure maths.
+-- corner: the button's corner of the minimap; tx: the button's centre x on screen; dw: the drawer's width; W: screen.
+function M.DrawerAnchor(corner, tx, dw, W)
+	local top = corner == "TOPLEFT" or corner == "TOPRIGHT"
+	local left = corner == "TOPLEFT" or corner == "BOTTOMLEFT"
+	if left and tx - dw - 12 < 0 then left = false elseif not left and tx + dw + 12 > W then left = true end
+	local v = top and "TOP" or "BOTTOM"
+	if left then return v .. "RIGHT", v .. "LEFT", -6 end
+	return v .. "LEFT", v .. "RIGHT", 6
+end
+
+local function anchorDrawer()
+	local c = mdb().drawerCorner
+	if c ~= "TOPLEFT" and c ~= "TOPRIGHT" and c ~= "BOTTOMRIGHT" then c = "BOTTOMLEFT" end
+	local inset = { TOPLEFT = { 3, -3 }, TOPRIGHT = { -3, -3 }, BOTTOMLEFT = { 3, 3 }, BOTTOMRIGHT = { -3, 3 } }
+	drawerToggle:ClearAllPoints()
+	drawerToggle:SetPoint(c, Minimap, c, inset[c][1], inset[c][2])
+	local tx = ns.Num((drawerToggle:GetCenter()))
+	local s = (ns.Num(drawerToggle:GetEffectiveScale()) or 1) / (ns.Num(UIParent:GetEffectiveScale()) or 1)
+	local W = screenSize()
+	local point, rel, dx = M.DrawerAnchor(c, (tx or 0) * s, ns.Num(drawer:GetWidth()) or 100, W)
+	drawer:ClearAllPoints()
+	drawer:SetPoint(point, drawerToggle, rel, dx, 0)
+	M.drawerPoint = point
+end
+M.AnchorDrawer = function() if drawer then anchorDrawer() end end
 
 local function makeDrawer()
 	if drawer then return end
 	local T = ns.Theme
 	drawerToggle = CreateFrame("Button", ns.PREFIX .. "MinimapDrawerButton", Minimap)
-	drawerToggle:SetSize(18, 18)
+	drawerToggle:SetSize(20, 20)
 	drawerToggle:SetFrameLevel((ns.Num(Minimap:GetFrameLevel()) or 1) + 10)
-	local bg = drawerToggle:CreateTexture(nil, "BACKGROUND")
-	bg:SetAllPoints(); bg:SetTexture(U.WHITE); bg:SetVertexColor(0, 0, 0, 0.65)
-	-- four small squares: a "grid of buttons"
+	drawerToggle:RegisterForClicks("LeftButtonUp")
+	-- our style: a dark slate tile, thin border, a 2x2 grid of light squares; the accent colour on hover and while open
+	U.Solid(drawerToggle, "BACKGROUND", T.bg[1], T.bg[2], T.bg[3], 0.92):SetAllPoints()
+	drawerToggle.border = U.Border(drawerToggle, 1, T.border[1], T.border[2], T.border[3], 1)
+	drawerToggle.squares = {}
 	for i = 0, 3 do
 		local sq = drawerToggle:CreateTexture(nil, "ARTWORK")
 		sq:SetTexture(U.WHITE)
-		sq:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.9)
 		sq:SetSize(5, 5)
-		sq:SetPoint("TOPLEFT", 3 + (i % 2) * 7, -3 - math.floor(i / 2) * 7)
+		sq:SetPoint("TOPLEFT", 4 + (i % 2) * 7, -4 - math.floor(i / 2) * 7)
+		drawerToggle.squares[#drawerToggle.squares + 1] = sq
+	end
+	function drawerToggle:Paint()
+		local on = self.hover or (drawer and drawer:IsShown())
+		local c = on and T.accent or T.text
+		for _, sq in ipairs(self.squares) do sq:SetVertexColor(c[1], c[2], c[3], on and 1 or 0.75) end
+		if on then self.border:SetColor(T.accent[1], T.accent[2], T.accent[3], 1) else self.border:SetColor(T.border[1], T.border[2], T.border[3], 1) end
 	end
 	drawerToggle:SetScript("OnEnter", function(self)
+		self.hover = true; self:Paint()
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-		GameTooltip:AddLine("Minimap buttons", 1, 1, 1)
-		GameTooltip:AddLine((self.count or 0) .. " addon buttons. Click to show or hide them.", 0.7, 0.7, 0.7, true)
+		GameTooltip:AddLine("Addon buttons", 1, 1, 1)
+		GameTooltip:AddLine((self.count or 0) .. " minimap buttons. Click to show or hide them.", 0.7, 0.7, 0.7, true)
 		GameTooltip:Show()
 	end)
-	drawerToggle:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	drawerToggle:SetScript("OnClick", function()
+	drawerToggle:SetScript("OnLeave", function(self) self.hover = false; self:Paint(); GameTooltip:Hide() end)
+	drawerToggle:SetScript("OnClick", function(self)
 		GameTooltip:Hide()
-		drawer:SetShown(not drawer:IsShown())
+		if drawer:IsShown() then drawer:Hide() else relayoutDrawer(); anchorDrawer(); drawer:Show() end
+		self:Paint()
 	end)
 
 	drawer = CreateFrame("Frame", ns.PREFIX .. "MinimapDrawer", UIParent)
-	drawer:SetFrameStrata("DIALOG")
+	drawer.eluiTheme = T
+	drawer:SetFrameStrata("HIGH")
 	drawer:SetClampedToScreen(true)
 	drawer:EnableMouse(true)
 	drawer:Hide()
-	local dbg = drawer:CreateTexture(nil, "BACKGROUND")
-	dbg:SetAllPoints(); dbg:SetTexture(U.WHITE); dbg:SetVertexColor(T.bg[1], T.bg[2], T.bg[3], 0.96)
+	U.Solid(drawer, "BACKGROUND", T.bg[1], T.bg[2], T.bg[3], 0.96):SetAllPoints()
+	local top = U.Solid(drawer, "ARTWORK", T.accent[1], T.accent[2], T.accent[3], 1)
+	top:SetHeight(2); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
 	U.Border(drawer, 1, T.border[1], T.border[2], T.border[3], 1)
 	drawer.empty = drawer:CreateFontString(nil, "OVERLAY")
 	U.SetFont(drawer.empty, 10)
 	drawer.empty:SetPoint("CENTER")
 	drawer.empty:SetTextColor(T.muted[1], T.muted[2], T.muted[3])
 	drawer.empty:SetText("none")
-	-- a window like any other: drag it where you like (remembered), Escape closes it through its own key handler
-	drawer:SetMovable(true)
-	drawer:RegisterForDrag("LeftButton")
-	drawer:SetScript("OnDragStart", drawer.StartMoving)
-	drawer:SetScript("OnDragStop", function(self)
-		self:StopMovingOrSizing()
-		local x, y = self:GetCenter()
-		x, y = ns.Num(x), ns.Num(y)
-		if x and y then mdb().drawerPos = { math.floor(x + 0.5), math.floor(y + 0.5) } end
-	end)
+	drawer:SetScript("OnShow", function() if drawerToggle then drawerToggle:Paint() end end)
+	drawer:SetScript("OnHide", function() if drawerToggle then drawerToggle:Paint() end end)
+	-- Escape closes it through its own key handler (never UISpecialFrames)
 	ns.UI.CloseOnEscape(drawer)
+	drawerToggle:Paint()
 	M.drawer, M.drawerToggle = drawer, drawerToggle
 end
 
-local CORNERS = {
-	TOPLEFT = { "TOPLEFT", 2, -2, "TOPRIGHT", "TOPLEFT", -4, 0 },
-	TOPRIGHT = { "TOPRIGHT", -2, -2, "TOPLEFT", "TOPRIGHT", 4, 0 },
-	BOTTOMLEFT = { "BOTTOMLEFT", 2, 2, "BOTTOMRIGHT", "BOTTOMLEFT", -4, 0 },
-	BOTTOMRIGHT = { "BOTTOMRIGHT", -2, 2, "BOTTOMLEFT", "BOTTOMRIGHT", 4, 0 },
-}
+local function libIcon() return LibStub and LibStub("LibDBIcon-1.0", true) end
 
-local function anchorDrawer()
-	local c = CORNERS[mdb().drawerCorner] or CORNERS.BOTTOMLEFT
-	drawerToggle:ClearAllPoints()
-	drawerToggle:SetPoint(c[1], Minimap, c[1], c[2], c[3])
-	drawer:ClearAllPoints()
-	local pos = mdb().drawerPos
-	if type(pos) == "table" and tonumber(pos[1]) then
-		drawer:SetPoint("CENTER", UIParent, "BOTTOMLEFT", pos[1], pos[2])
-	else
-		drawer:SetPoint(c[4], drawerToggle, c[5], c[6], c[7])
-	end
-end
-
+-- Take one addon button into the drawer (or out of sight). Everything about it that we change is remembered and
+-- given back on release. The button keeps its own textures, scripts, tooltip and click.
 local function hold(b)
 	if held[b] or not b then return end
 	if b.IsProtected and b:IsProtected() then return end
-	local info = { parent = b:GetParent(), points = savePoints(b) }
+	if not hasIcon(b) then return end -- nothing to show: leave it where it is
+	local info = {
+		parent = b:GetParent(), points = savePoints(b),
+		strata = b.GetFrameStrata and b:GetFrameStrata(), level = ns.Num(b.GetFrameLevel and b:GetFrameLevel()),
+		fixedStrata = b.HasFixedFrameStrata and b:HasFixedFrameStrata(), fixedLevel = b.HasFixedFrameLevel and b:HasFixedFrameLevel(),
+		alpha = ns.Num(b:GetAlpha()) or 1, fade = b.showOnMouseover,
+		drag = b.GetScript and b:GetScript("OnDragStart") ~= nil,
+	}
+	local ok = pcall(function()
+		-- LibDBIcon fades buttons out away from the minimap (showOnMouseover): in the drawer they stay visible
+		if b.showOnMouseover then
+			b.showOnMouseover = false
+			if b.fadeOut then b.fadeOut:Stop() end
+		end
+		-- dragging it around the minimap would fight the drawer
+		if b.RegisterForDrag then b:RegisterForDrag() end
+		-- LibDBIcon pins strata and level; the drawer needs them above itself
+		if b.SetFixedFrameStrata then b:SetFixedFrameStrata(false) end
+		if b.SetFixedFrameLevel then b:SetFixedFrameLevel(false) end
+		b:SetParent(mdb().buttons == "hide" and hider or drawer)
+		b:SetAlpha(1)
+	end)
+	if not ok then
+		-- could not be collected cleanly: put back what was changed and leave it
+		pcall(function()
+			b:SetParent(info.parent)
+			b:ClearAllPoints()
+			for _, p in ipairs(info.points) do b:SetPoint(unpack(p)) end
+			b.showOnMouseover = info.fade
+			if info.drag and b.RegisterForDrag then b:RegisterForDrag("LeftButton") end
+		end)
+		return
+	end
 	held[b] = info
 	heldList[#heldList + 1] = b
-	-- dragging it around the minimap would fight the drawer
-	if b.RegisterForDrag then pcall(b.RegisterForDrag, b) end
-	if not info.hooked then
-		info.hooked = true
+	if not hooked[b] then
+		hooked[b] = true
 		hooksecurefunc(b, "SetPoint", function(o)
 			if placing or not held[o] then return end
 			ns.Soon(relayoutDrawer)
 		end)
+		-- LibDBIcon's fade timer and its minimap hooks set alpha; in the drawer it stays visible
+		hooksecurefunc(b, "SetAlpha", function(o, a)
+			if placing or not held[o] or o:GetParent() ~= drawer then return end
+			if ns.Num(a) and a < 1 then placing = true; o:SetAlpha(1); placing = false end
+		end)
 		b:HookScript("OnShow", function(o) if held[o] then held[o].hiddenByOwner = nil; ns.Soon(relayoutDrawer) end end)
 		b:HookScript("OnHide", function(o)
-			if held[o] and o:GetParent() == drawer then held[o].hiddenByOwner = true; ns.Soon(relayoutDrawer) end
+			if held[o] and o:GetParent() == drawer and drawer:IsShown() then held[o].hiddenByOwner = true; ns.Soon(relayoutDrawer) end
 		end)
 	end
 	-- a LibDBIcon button its owner hid stays out of the grid
-	if b.db and type(b.db) == "table" and b.db.hide then info.hiddenByOwner = true end
-	if mdb().buttons == "hide" then
-		pcall(b.SetParent, b, hider)
-	else
-		pcall(b.SetParent, b, drawer)
-		pcall(b.SetFrameStrata, b, "DIALOG")
-	end
+	if (type(b.db) == "table" and b.db.hide) or not b:IsShown() then info.hiddenByOwner = true end
 end
+M.Hold = hold
 
 function M:CollectButtons()
 	if self.buttonRival or mdb().buttons == "leave" then return end
 	makeDrawer()
-	anchorDrawer()
-	drawerToggle:SetShown(mdb().buttons == "drawer")
-	local icon = LibStub("LibDBIcon-1.0", true)
+	local icon = libIcon()
 	if icon and icon.GetButtonList then
 		for _, name in ipairs(icon:GetButtonList()) do
 			local b = icon:GetMinimapButton(name)
-			if b then hold(b) end
+			if b and not mdb().ignore[b:GetName() or ""] then hold(b) end
 		end
 		if not self.iconCallback and icon.RegisterCallback then
 			self.iconCallback = true
@@ -778,7 +849,7 @@ function M:CollectButtons()
 			end)
 		end
 	end
-	for _, parent in ipairs({ Minimap, MinimapBackdrop, MinimapCluster }) do
+	for _, parent in ipairs({ Minimap, MinimapBackdrop or false, MinimapCluster or false }) do
 		if type(parent) == "table" and parent.GetChildren then
 			for _, child in ipairs({ parent:GetChildren() }) do
 				if child ~= drawerToggle and M.IsAddonButton(child) then hold(child) end
@@ -786,6 +857,7 @@ function M:CollectButtons()
 		end
 	end
 	relayoutDrawer()
+	anchorDrawer()
 end
 
 -- Give the buttons back (mode changed to "leave", or a button put on the ignore list).
@@ -796,14 +868,20 @@ function M:ReleaseButtons(only)
 		local name = b.GetName and b:GetName()
 		if not only or only == name then
 			local info = held[b]
-			pcall(function()
-				b:SetParent(info.parent)
-				b:ClearAllPoints()
-				for _, p in ipairs(info.points) do b:SetPoint(unpack(p)) end
-				if b.RegisterForDrag then b:RegisterForDrag("LeftButton") end
-			end)
 			held[b] = nil
 			table.remove(heldList, i)
+			pcall(function()
+				b:SetParent(info.parent)
+				if info.strata then b:SetFrameStrata(info.strata) end
+				if info.level then b:SetFrameLevel(info.level) end
+				if info.fixedStrata and b.SetFixedFrameStrata then b:SetFixedFrameStrata(true) end
+				if info.fixedLevel and b.SetFixedFrameLevel then b:SetFixedFrameLevel(true) end
+				b:ClearAllPoints()
+				for _, p in ipairs(info.points) do b:SetPoint(unpack(p)) end
+				if info.drag and b.RegisterForDrag then b:RegisterForDrag("LeftButton") end
+				b.showOnMouseover = info.fade
+				b:SetAlpha(info.alpha or 1)
+			end)
 		end
 	end
 	placing = false

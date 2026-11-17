@@ -111,7 +111,19 @@ function impl:StartMoving() self.__moving = true end
 function impl:StopMovingOrSizing() self.__moving = false end
 function impl:GetObjectType() return self.__kind end
 function impl:IsObjectType(t) return self.__kind == t end
-function impl:GetChildren() return unpack(self.__children) end
+local REGION = { Texture = true, FontString = true, MaskTexture = true }
+function impl:GetChildren()
+	local t = {}
+	for _, c in ipairs(self.__children) do if not REGION[c.__kind] then t[#t + 1] = c end end
+	return unpack(t)
+end
+function impl:GetRegions()
+	local t = {}
+	for _, c in ipairs(self.__children) do if REGION[c.__kind] then t[#t + 1] = c end end
+	return unpack(t)
+end
+function impl:GetNormalTexture() return self.__normal end
+function impl:SetNormalTexture(t) self.__normal = t end
 function impl:IsProtected() return self.__protected or false end
 function impl:IsMouseOver() return false end
 function impl:GetZoom() return self.__zoom or 0 end
@@ -126,6 +138,9 @@ function impl:SetValue(v) self.__value = v end
 function impl:GetMinMaxValues() return 0, 1 end
 function impl:GetID() return 0 end
 function impl:SetMaskTexture(t) self.__mask = t end
+function impl:RegisterForDrag(...) self.__drag = select("#", ...) > 0 end
+function impl:SetClampedToScreen(on) self.__clamped = on end
+function impl:IsClampedToScreen() return self.__clamped or false end
 function impl:GetFrameStrata() return self.__strata or (self.__parent and self.__parent.GetFrameStrata and self.__parent:GetFrameStrata()) or "MEDIUM" end
 function impl:SetFrameStrata(s) if not self.__fixedStrata then self.__strata = s end end
 function impl:SetFixedFrameStrata(on) self.__fixedStrata = on end

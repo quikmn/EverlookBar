@@ -412,11 +412,14 @@ step("minimap: decorations hidden, buttons collected, pins left alone", function
 	eq(MinimapCluster.MinimapContainer.PlayerCoords:GetParent(), MinimapCluster.MinimapContainer, "coords keep their parent")
 	eq(Minimap:GetParent(), mm.holder, "minimap in our holder")
 	local btn = CreateFrame("Button", "SomeAddonMinimapButton", Minimap); btn:SetSize(31, 31)
+	btn:CreateTexture():SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+	local blank = CreateFrame("Button", "SomeAddonBlankButton", Minimap); blank:SetSize(31, 31) -- no icon: left alone
 	local pin = CreateFrame("Button", "QuestieFrame12", Minimap); pin:SetSize(16, 16)
 	local blizz = CreateFrame("Button", "MiniMapLFGFrame", Minimap); blizz:SetSize(32, 32)
 	MOCK.Fire("ADDON_LOADED", "SomeAddon"); flush()
 	mm:ApplyAll(); flush()
 	eq(btn:GetParent(), mm.drawer, "addon button in the drawer")
+	eq(blank:GetParent(), Minimap, "a button with nothing to show is left where it was")
 	eq(pin:GetParent(), Minimap, "map pin left alone")
 	eq(blizz:GetParent(), Minimap, "Blizzard button left alone")
 	slash("minimap ignore SomeAddonMinimapButton")
@@ -462,6 +465,112 @@ step("minimap: Blizzard's mail event after we hid the mail icon (UPDATE_PENDING_
 			error(w.__name .. " re-parented to our hidden frame")
 		end
 	end
+end)
+
+-- A LibDBIcon-1.0 like the real one (r57): buttons on the minimap with a border (OVERLAY), a background and the icon
+-- (ARTWORK); strata MEDIUM and level 8 pinned with SetFixedFrameStrata/Level; showOnMouseover fades them to alpha 0.
+local function fakeLibDBIcon()
+	local lib = LibStub:NewLibrary("LibDBIcon-1.0", 57)
+	lib.objects, lib.callbacks = {}, {}
+	function lib.RegisterCallback(owner, event, fn) lib.callbacks[event] = fn end
+	function lib:GetButtonList() local t = {}; for n in pairs(self.objects) do t[#t + 1] = n end; table.sort(t); return t end
+	function lib:GetMinimapButton(n) return self.objects[n] end
+	function lib:Make(name, db)
+		local b = CreateFrame("Button", "LibDBIcon10_" .. name, Minimap)
+		b.db = db or {}
+		b.dataObject = { icon = "Interface\\Icons\\" .. name }
+		b:SetFrameStrata("MEDIUM"); b:SetFixedFrameStrata(true)
+		b:SetFrameLevel(8); b:SetFixedFrameLevel(true)
+		b:SetSize(31, 31)
+		b.border = b:CreateTexture(nil, "OVERLAY"); b.border:SetTexture(136430)
+		b.background = b:CreateTexture(nil, "BACKGROUND"); b.background:SetTexture(136467)
+		b.icon = b:CreateTexture(nil, "ARTWORK"); b.icon:SetTexture(b.dataObject.icon)
+		b:SetScript("OnDragStart", function() end); b:RegisterForDrag("LeftButton")
+		b:SetScript("OnEnter", function(self) MOCK.tipFor = self end)
+		b:SetScript("OnClick", function(self, button) MOCK.clicked = self:GetName() .. ":" .. button end)
+		b.fadeOut = { Stop = function() b.__fading = false end, Play = function() b.__fading = true end }
+		b:SetPoint("CENTER", Minimap, "CENTER", -80, -40)
+		if b.db.hide then b:Hide() end
+		self.objects[name] = b
+		if self.callbacks.LibDBIcon_IconCreated then self.callbacks.LibDBIcon_IconCreated("LibDBIcon_IconCreated", b, name) end
+		return b
+	end
+	-- BasicMinimap's "hide addon buttons until hovered": alpha 0, faded again when the mouse leaves the minimap
+	function lib:ShowOnEnter(name, v) local b = self.objects[name]; b.showOnMouseover = v; b:SetAlpha(v and 0 or 1) end
+	function lib:MinimapLeave() for _, b in pairs(self.objects) do if b.showOnMouseover then b:SetAlpha(0) end end end
+	return lib
+end
+
+step("minimap: LibDBIcon buttons in the drawer keep their icon, tooltip and click", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	local lib = fakeLibDBIcon()
+	local bug = lib:Make("BugSack")
+	local q = lib:Make("Questie")
+	local off = lib:Make("Hidden", { hide = true })
+	lib:ShowOnEnter("Questie", true)
+	mm:ApplyAll(); flush()
+	local drawer, toggle = mm.drawer, mm.drawerToggle
+	eq(bug:GetParent(), drawer, "BugSack in the drawer")
+	eq(q:GetParent(), drawer, "Questie in the drawer")
+	-- the old drawer sat in DIALOG while the buttons stayed pinned at MEDIUM: the drawer's dark panel covered them
+	-- and only their grey rings showed through. Now they draw above the drawer.
+	eq(bug:GetFrameStrata(), drawer:GetFrameStrata(), "same strata as the drawer")
+	check(bug:GetFrameLevel() > drawer:GetFrameLevel(), "above the drawer's panel")
+	eq(bug.icon:GetParent(), bug, "icon texture untouched")
+	eq(bug.icon.__texture, "Interface\\Icons\\BugSack", "icon kept")
+	eq(q:GetAlpha(), 1, "faded button visible in the drawer")
+	check(not q.showOnMouseover, "no fading while in the drawer")
+	lib:MinimapLeave()
+	eq(q:GetAlpha(), 1, "stays visible when the mouse leaves the minimap")
+	check(not bug.__drag, "dragging off in the drawer")
+	-- grid: two visible buttons, the hidden one is not placed
+	local _, _, _, x1 = bug:GetPoint(1)
+	local _, _, _, x2 = q:GetPoint(1)
+	check(x1 ~= x2, "in a grid")
+	eq(toggle.count, 2, "two buttons shown")
+	check(toggle:IsShown(), "drawer button shown")
+	-- opening: next to the drawer button, never somewhere else
+	toggle.__scripts.OnClick(toggle, "LeftButton")
+	check(drawer:IsShown(), "opens")
+	local p, rel, rp = drawer:GetPoint(1)
+	eq(rel, toggle, "anchored to the drawer button")
+	eq(p, "BOTTOMRIGHT", "minimap top-right, button bottom-left: opens to the left, growing up along the map")
+	eq(rp, "BOTTOMLEFT")
+	-- the buttons' own scripts still work
+	bug.__scripts.OnClick(bug, "RightButton")
+	eq(MOCK.clicked, "LibDBIcon10_BugSack:RightButton", "normal click")
+	bug.__scripts.OnEnter(bug)
+	eq(MOCK.tipFor, bug, "own tooltip")
+	-- a button created later joins
+	local late = lib:Make("TomTom"); flush()
+	eq(late:GetParent(), drawer, "late button collected")
+	-- release gives everything back
+	db.buttons = "leave"; mm:ReleaseButtons()
+	eq(bug:GetParent(), Minimap, "back on the minimap")
+	eq(bug:GetFrameStrata(), "MEDIUM", "strata back")
+	eq(bug:GetFrameLevel(), 8, "level back")
+	check(bug:HasFixedFrameStrata(), "pinned again")
+	check(q.showOnMouseover, "fading back")
+	check(bug.__drag, "dragging back")
+	local _, relb = bug:GetPoint(1)
+	eq(relb, Minimap, "position back")
+	db.buttons = "drawer"; mm:ApplyAll(); flush()
+	eq(bug:GetParent(), drawer, "collected again")
+	drawer:Hide()
+end)
+
+step("minimap: drawer opens beside its button, flips when there is no room", function()
+	local mm = ns.modules.minimap
+	local p, rp, dx = mm.DrawerAnchor("BOTTOMLEFT", 1700, 200, 1920)
+	eq(p, "BOTTOMRIGHT"); eq(rp, "BOTTOMLEFT"); check(dx < 0)
+	p, rp = mm.DrawerAnchor("TOPLEFT", 1700, 200, 1920)
+	eq(p, "TOPRIGHT", "top corner: grows down")
+	p, rp = mm.DrawerAnchor("BOTTOMLEFT", 100, 200, 1920)
+	eq(p, "BOTTOMLEFT", "no room on the left: opens to the right"); eq(rp, "BOTTOMRIGHT")
+	p = mm.DrawerAnchor("TOPRIGHT", 1850, 200, 1920)
+	eq(p, "TOPRIGHT", "no room on the right: opens to the left")
+	check(mm.drawer:IsClampedToScreen(), "clamped to the screen")
 end)
 
 step("minimap: round and square masks, border behind the map", function()
