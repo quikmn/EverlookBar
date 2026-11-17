@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Minimap: "Unlock minimap" is the first setting on its page (or `/ebar minimap unlock`): drag the minimap itself with
+  the left mouse button, mouse wheel to resize, right-click or Lock to lock; snaps to screen edges, `/ebar minimap
+  reset` puts it back. Fixed the round shape showing black, the drawer showing empty grey circles instead of the
+  addon icons (and opening away from the minimap), Blizzard's coordinates under the minimap staying visible, and a
+  Lua error from Blizzard's mail icon (UPDATE_PENDING_MAIL) after hiding it. New: border thickness, a zone line
+  showing the subzone, and `/ebar minimap scan` naming any other text around the minimap.
 - First version. Info bars for LibDataBroker plugins: any number of bars on any edge or anywhere, one or more rows,
   your own length, colour, opacity, font and spacing; plugins in left, centre and right groups, placed from the
   settings window or by dragging in unlock mode.

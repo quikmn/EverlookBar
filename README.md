@@ -25,16 +25,21 @@ ElvUI show. Built in (each one switchable, each one a normal LDB plugin):
   a right-click.
 - **Clock**: off by default.
 
-**Clean minimap.** Move it, size it, square or round, a thin border. Hide or move the zone text, the day/night
-indicator, the clock, coordinates and the tracking, calendar and mail pieces. Every addon's minimap button goes into
-one small drawer, or is hidden. If another addon already manages the minimap (BasicMinimap, SexyMap...), Everlook Bar
-leaves the minimap frame alone and says so once in chat.
+**Clean minimap.** Unlock it and drag the minimap itself with the left mouse button (mouse wheel to resize,
+right-click to lock); it snaps to screen edges and remembers where you put it. Square or round, a border of your
+thickness and colour, an optional zone line showing where you stand. Hide or move the zone text, the day/night
+indicator, the clock, Blizzard's coordinates and the tracking, calendar and mail pieces. Every addon's minimap button
+goes into one small drawer beside the minimap, with its own icon, tooltip and click, or is hidden. If another addon
+already manages the minimap (BasicMinimap, SexyMap...), Everlook Bar leaves the minimap frame alone and says so once in
+chat.
 
 ## Using it
 
 - `/ebar` opens the settings window. Everything in it also works from chat: `/ebar help`, `/ebar settings`.
 - `/ebar unlock` (or the Unlock button): drag bars to any edge or anywhere, the minimap where you like, and plugins
   between bars and groups. A grid helps you line things up. Escape locks again.
+- `/ebar minimap unlock`, `lock`, `reset`: move the minimap on its own, or put it back in the top-right corner.
+  `/ebar minimap scan` lists what the minimap module found and any other text shown around the minimap.
 - `/ebar perf` shows what Everlook Bar itself costs.
 
 ## Built to stay out of the way
