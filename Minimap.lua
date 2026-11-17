@@ -277,6 +277,9 @@ function M:Report()
 		ns:Print(e.label .. " [" .. self:Mode(e.key) .. "]: " .. (#names > 0 and table.concat(names, ", ") or "|cff8d94a3not in this client|r"))
 	end
 	ns:Print("addon buttons held: " .. #heldList .. (self.buttonRival and (" (|cffffd25a" .. self.buttonRival .. " collects them|r)") or ""))
+	for n, why in pairs(M.skipped) do
+		if not held[_G[n] or false] then ns:Print("left on the minimap: " .. U.Escape(n) .. " (" .. why .. ")") end
+	end
 	for _, c in ipairs(self:ForeignCoords()) do ns:Print("|cffffd25a" .. c.addon .. "|r: " .. c.fix) end
 	local found = self:ScanText()
 	if #found == 0 then
@@ -895,10 +898,16 @@ local function libIcon() return LibStub and LibStub("LibDBIcon-1.0", true) end
 
 -- Take one addon button into the drawer (or out of sight). Everything about it that we change is remembered and
 -- given back on release. The button keeps its own textures, scripts, tooltip and click.
+M.skipped = {} -- [button name] = why it was left where it was
+local function skip(b, why)
+	local n = b.GetName and b:GetName()
+	if n then M.skipped[n] = why end
+end
+
 local function hold(b)
 	if held[b] or not b then return end
-	if b.IsProtected and b:IsProtected() then return end
-	if not hasIcon(b) then return end -- nothing to show: leave it where it is
+	if b.IsProtected and b:IsProtected() then skip(b, "protected") return end
+	if not hasIcon(b) then skip(b, "no icon of its own") return end -- nothing to show: leave it where it is
 	local info = {
 		parent = b:GetParent(), points = savePoints(b),
 		strata = b.GetFrameStrata and b:GetFrameStrata(), level = ns.Num(b.GetFrameLevel and b:GetFrameLevel()),
@@ -921,6 +930,7 @@ local function hold(b)
 		b:SetAlpha(1)
 	end)
 	if not ok then
+		skip(b, "refused to move")
 		-- could not be collected cleanly: put back what was changed and leave it
 		pcall(function()
 			b:SetParent(info.parent)
