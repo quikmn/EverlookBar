@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Plugins page in `/ebar`: drag and drop. Drag a plugin's row (a grip on its left) to reorder it in its group, move
+  it to another group or another bar, or drop it in "Not on a bar" to take it off; drag from there onto a bar to add
+  it at that spot. A ghost of the row follows the cursor, a thin blue line shows where it lands, the group lights up
+  and the page scrolls near its edges; right-click or Escape cancels. The bar changes at once, in combat too. With
+  more than one bar, each bar's groups show under its name. The < and > buttons still move one step.
 - "Build your own" page in `/ebar`: build your own plugin for Everlook Bar. Its button shows the address of the full
   guide on EverlookDB (everlookdb.com/ebar/plugins) to copy, and a line to paste into an AI assistant so it writes the
   plugin with you. The settings search finds it ("plugin", "module", "develop", "API", "guide").

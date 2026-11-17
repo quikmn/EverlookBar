@@ -36,6 +36,8 @@ chat.
 ## Using it
 
 - `/ebar` opens the settings window. Everything in it also works from chat: `/ebar help`, `/ebar settings`.
+- On the Plugins page of `/ebar`, drag a plugin's row to reorder it, move it to another group or bar, or drop it in
+  "Not on a bar" to take it off; drag from there onto a bar to add it. Right-click or Escape cancels a drag.
 - `/ebar unlock` (or the Unlock button): drag bars to any edge or anywhere, the minimap where you like, and plugins
   between bars and groups. A grid helps you line things up. Escape locks again.
 - `/ebar minimap unlock`, `lock`, `reset`: move the minimap on its own, or put it back in the top-right corner.
