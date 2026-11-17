@@ -10,12 +10,22 @@
 --   app:Setting({ key = "fontsize", type = "number", label = "Font size", min = 8, max = 48, get = ..., set = ... })
 --   app:Command("test", "test", "show fake numbers", function(rest) ... end)
 --   app:Section("general", "General", function(stack, app) app:Widget(stack, "fontsize") end)
---   SlashCmdList.WHACK = function(msg) app:HandleSlash(msg) end
+--   app:Movable({ what = "the text areas", get = ..., set = ... })   -- /whack lock, unlock
+--   app:Reset("outgoing", "the outgoing area", function() ... end)   -- /whack reset outgoing (asks first)
+--   app:StatusLines(function() return "seen 12 hits" end)            -- /whack status
+--   app:RegisterSlash("WHACK")   -- or SlashCmdList.WHACK = function(msg) app:HandleSlash(msg) end
+-- Chat commands follow one pattern in every addon: see "Chat commands" below and COMMANDS.md.
 --
 -- Widgets: Header, Note, Toggle, Slider, Dropdown, Color, Input, CopyBox, Stat, List, Button, ConfirmButton,
 -- ButtonRow, TextArea, ScrollPage. Bound widgets take { label, desc, get, set, disabled, after } and have :Refresh().
 -- The mouse wheel scrolls the page: sliders and dropdowns never take it. The page scroll bar is 12 px and draggable.
-local MAJOR, MINOR = "EverlookUI-1", 2
+--
+-- Search: every window has a search box at the top centre (Ctrl+F; Escape clears it, then closes the window).
+-- It finds settings (app:Widget), plain toggles, sliders, dropdowns, colour swatches and button rows on any
+-- page, by label, description, page and heading, a dropdown's value and choices, the chat-command name and
+-- optional keywords: app:Setting({ ..., keywords = { "opacity", "alpha" } }) or a widget's/button's opt.keywords.
+-- opt.search = false keeps a widget out. Results are the real controls, borrowed from their page while listed.
+local MAJOR, MINOR = "EverlookUI-1", 4
 local UI = LibStub:NewLibrary(MAJOR, MINOR)
 if not UI then return end
 UI.version = MINOR
@@ -215,10 +225,13 @@ function UI.CloseOnEscape(frame)
 	end)
 	frame:SetScript("OnKeyDown", function(self, key)
 		local esc = key == "ESCAPE"
-		if not InCombatLockdown() then self:SetPropagateKeyboardInput(not esc) end
+		-- frame.eluiKey(frame, key) -> true takes a key for the window (Ctrl+F); every other key reaches the game
+		local taken = not esc and self.eluiKey and self.eluiKey(self, key) and true or false
+		if not InCombatLockdown() then self:SetPropagateKeyboardInput(not esc and not taken) end
 		if not esc then return end
-		-- an open dropdown list closes first; the next Escape closes the window
+		-- an open dropdown list closes first, then frame.eluiEscape gets a go (a search clears); then the window closes
 		if UI.IsPopupShown and UI.IsPopupShown() then UI.ClosePopup() return end
+		if self.eluiEscape and self.eluiEscape(self) then return end
 		self:Hide()
 	end)
 end
@@ -235,6 +248,11 @@ function UI.Stack(parent, width, T)
 end
 
 function Stack:Place(e)
+	e.y = self.y
+	if e.borrowed then -- listed in search results right now: keep its room, leave it where it is
+		self.y = self.y + e.height + e.gap
+		return
+	end
 	local f = e.frame
 	f:ClearAllPoints()
 	f:SetPoint("TOPLEFT", self.parent, "TOPLEFT", e.indent, -self.y)
@@ -251,6 +269,7 @@ function Stack:Add(frame, height, gap, indent)
 	self:Place(e)
 	if frame.Refresh then self.widgets[#self.widgets + 1] = frame end
 	self.parent:SetHeight(self.y + self.T.pad)
+	if self.app and frame.searchInfo then self.app:IndexWidget(self, frame) end
 	return frame
 end
 
@@ -279,6 +298,16 @@ end
 
 function Stack:RefreshAll()
 	for _, w in ipairs(self.widgets) do w:Refresh() end
+	-- search results can list controls from other pages that depend on this one
+	if self.app and self.app.searching then self.app:RefreshBorrowed(self) end
+end
+
+-- What the search knows about a widget (see App:IndexWidget), from the widget's opt.
+local function SearchInfo(opt, extra)
+	if opt.search == false then return nil end
+	local info = { label = opt.label, desc = opt.desc, keywords = opt.keywords, key = opt.searchKey, chatLabel = opt.chatLabel }
+	if extra then for k, v in pairs(extra) do info[k] = v end end
+	return info
 end
 
 ------------------------------------------------------------------------
@@ -303,6 +332,7 @@ function UI.Header(stack, text, sub)
 		h = 34 + math.max(10, s:GetStringHeight())
 	end
 	stack:Space(stack.y > 0 and 8 or 0)
+	stack.searchHeader = text -- search results show "Page » Heading" for the rows under it
 	return stack:Add(f, h, 12)
 end
 
@@ -422,6 +452,19 @@ function UI.ButtonRow(stack, buttons)
 	if buttons.refresh then
 		function f:Refresh() buttons.refresh(f) end
 	end
+	if buttons.search ~= false then
+		local labels, descs, keys = {}, {}, {}
+		local function addKeys(k) for _, w in ipairs(type(k) == "table" and k or { k }) do keys[#keys + 1] = w end end
+		for _, d in ipairs(buttons) do
+			if type(d.label) == "string" then labels[#labels + 1] = d.label end
+			if d.desc then descs[#descs + 1] = d.desc end
+			addKeys(d.keywords)
+		end
+		addKeys(buttons.keywords)
+		if #labels > 0 then
+			f.searchInfo = { label = table.concat(labels, " / "), desc = #descs > 0 and table.concat(descs, " ") or nil, keywords = keys }
+		end
+	end
 	stack:Add(f, 26, 12)
 	if f.Refresh then f:Refresh() end
 	return f
@@ -479,6 +522,7 @@ function UI.Toggle(stack, opt)
 		if opt.after then opt.after() end
 	end)
 	Tooltip(f, opt.label, opt.desc)
+	f.searchInfo = opt.label and SearchInfo(opt)
 	stack:Add(f, 20)
 	f:Refresh()
 	return f
@@ -570,6 +614,7 @@ function UI.Slider(stack, opt)
 	end)
 	box:SetScript("OnEscapePressed", function(self) self:ClearFocus(); f:Refresh() end)
 	Tooltip(f, opt.label, opt.desc)
+	f.searchInfo = opt.label and SearchInfo(opt)
 	stack:Add(f, 40)
 	f:Refresh()
 	return f
@@ -703,6 +748,14 @@ function UI.Dropdown(stack, opt)
 		end)
 	end)
 	Tooltip(b, opt.label, opt.desc)
+	f.searchInfo = opt.label and SearchInfo(opt, {
+		value = function() return value:GetText() end,
+		choices = function()
+			local t = {}
+			for _, it in ipairs(items()) do if not it.title and it.text then t[#t + 1] = tostring(it.text) end end
+			return table.concat(t, " ")
+		end,
+	})
 	stack:Add(f, 44)
 	f:Refresh()
 	return f
@@ -754,6 +807,7 @@ function UI.Color(stack, opt)
 		end
 	end)
 	Tooltip(f, opt.label, opt.desc)
+	f.searchInfo = opt.label and SearchInfo(opt)
 	stack:Add(f, 20)
 	f:Refresh()
 	return f
@@ -831,6 +885,8 @@ function UI.Input(stack, opt)
 		end
 	end
 	Tooltip(box, opt.label, opt.desc)
+	-- a plain text box is usually data entry (a name, a filter), not a setting: only settings and opt-ins are found
+	if opt.label and (opt.searchKey or opt.keywords) then f.searchInfo = SearchInfo(opt) end
 	stack:Add(f, opt.label and 44 or 26)
 	if f.Refresh then f:Refresh() else updateHint() end
 	return f
@@ -1155,7 +1211,7 @@ function UI.ScrollPage(parent)
 	local child = CreateFrame("Frame", nil, scroll)
 	child:SetSize(1, 1)
 	scroll:SetScrollChild(child)
-	local track, update = AttachScrollBar(scroll, child, parent, PAGE_STEP)
+	local track, update, setScroll = AttachScrollBar(scroll, child, parent, PAGE_STEP)
 	track:SetPoint("TOPRIGHT", -3, -2)
 	track:SetPoint("BOTTOMRIGHT", -3, 2)
 	scroll:SetScript("OnSizeChanged", function(_, w)
@@ -1169,6 +1225,7 @@ function UI.ScrollPage(parent)
 	scroll.child = child
 	scroll.track = track
 	scroll.UpdateBar = update
+	scroll.SetScroll = setScroll
 	return scroll
 end
 
@@ -1219,6 +1276,210 @@ function UI.LinkWindow(name, T, intro, url)
 end
 
 ------------------------------------------------------------------------
+-- Settings search: the matcher. Plain functions (no frames), tested offline.
+--   Search.Entry(info) -> an entry; info: label, chatLabel, desc, keywords (table or "a b c"), key (the chat
+--     command name), section, header, choices (text or fn), value (fn: the shown value, read at search time)
+--   Search.Match(entries, query, keep) -> { { entry, score }, ... } best first; keep(entry) filters
+--   Search.Suggest(entries, query, keep) -> a nearby query that finds something, or nil
+-- Matching ignores case and accents and works on word starts ("trans" finds "Transparent"); every word typed
+-- must match somewhere, in any order. A label match beats a description match; the whole label beats both.
+------------------------------------------------------------------------
+local Search = {}
+UI.Search = Search
+
+-- Accented letters to plain ones, and Cyrillic capitals to small (string.lower only knows A-Z).
+local FOLD = {}
+do
+	local groups = {
+		a = "ÀÁÂÃÄÅàáâãäåĀāĂăĄą", ae = "Ææ", c = "ÇçĆćĈĉĊċČč", d = "ÐðĎďĐđ", e = "ÈÉÊËèéêëĒēĔĕĖėĘęĚě",
+		g = "ĜĝĞğĠġĢģ", h = "ĤĥĦħ", i = "ÌÍÎÏìíîïĨĩĪīĬĭĮįİı", j = "Ĵĵ", k = "Ķķ", l = "ĹĺĻļĽľĿŀŁł",
+		n = "ÑñŃńŅņŇň", o = "ÒÓÔÕÖØòóôõöøŌōŎŏŐő", oe = "Œœ", r = "ŔŕŖŗŘř", s = "ŚśŜŝŞşŠš", ss = "ß",
+		t = "ŢţŤťŦŧ", th = "Þþ", u = "ÙÚÛÜùúûüŨũŪūŬŭŮůŰűŲų", w = "Ŵŵ", y = "ÝýÿŶŷŸ", z = "ŹźŻżŽž",
+	}
+	for to, chars in pairs(groups) do
+		for ch in chars:gmatch("[\192-\255][\128-\191]*") do FOLD[ch] = to end
+	end
+	for b = 0x90, 0x9F do FOLD["\208" .. string.char(b)] = "\208" .. string.char(b + 0x20) end -- А-П
+	for b = 0xA0, 0xAF do FOLD["\208" .. string.char(b)] = "\209" .. string.char(b - 0x20) end -- Р-Я
+	FOLD["\208\129"], FOLD["\209\145"] = "\208\181", "\208\181" -- Ё ё read as е
+end
+
+-- Lower case, no accents, no colour codes or textures, no apostrophes.
+function Search.Normalize(s)
+	s = tostring(s or "")
+	s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", " "):gsub("|A.-|a", " "):gsub("|n", " "):gsub("||", "|")
+	-- accents first, then A-Z only: string.lower follows the C locale and can mangle UTF-8 bytes
+	s = s:gsub("[\192-\255][\128-\191]*", FOLD)
+	s = s:gsub("[A-Z]+", string.lower)
+	s = s:gsub("'", ""):gsub("\226\128\153", "")
+	return s
+end
+
+local WORD = "[%w\128-\255]+"
+
+-- The words of a query, normalized.
+function Search.Terms(query)
+	local t = {}
+	for w in Search.Normalize(query):gmatch(WORD) do t[#t + 1] = w end
+	return t
+end
+
+-- How much a match in each part counts.
+Search.WEIGHT = { label = 10, key = 8, keywords = 7, section = 5, header = 5, value = 4, choices = 3, desc = 3 }
+local WEIGHT = Search.WEIGHT
+
+local function makeField(text, weight, whole)
+	if type(text) == "table" then text = table.concat(text, " ") end
+	if text == nil or text == "" then return nil end
+	local norm = Search.Normalize(text)
+	local words = {}
+	for w in norm:gmatch(WORD) do words[#words + 1] = w end
+	if whole then words[#words + 1] = norm end -- a chat name like "outgoing.fontsize" also matches whole
+	if #words == 0 then return nil end
+	return { text = norm, words = words, weight = weight }
+end
+
+function Search.Entry(info)
+	local e = { fields = {}, info = info }
+	local function add(text, weight, whole)
+		local f = makeField(text, weight, whole)
+		if f then e.fields[#e.fields + 1] = f end
+		return f
+	end
+	local label = add(info.label, WEIGHT.label)
+	if info.chatLabel and info.chatLabel ~= info.label then add(info.chatLabel, WEIGHT.label - 1) end
+	add(info.key, WEIGHT.key, true)
+	add(info.keywords, WEIGHT.keywords)
+	add(info.section, WEIGHT.section)
+	add(info.header, WEIGHT.header)
+	add(type(info.choices) == "function" and info.choices() or info.choices, WEIGHT.choices)
+	add(info.desc, WEIGHT.desc)
+	e.labelText = label and table.concat(label.words, " ") or ""
+	e.value = type(info.value) == "function" and info.value or nil
+	return e
+end
+
+-- 3 a whole word, 2 the start of a word, 1 inside a word (4 or more letters typed), 0 not there.
+local function termIn(field, term)
+	local best = 0
+	for _, w in ipairs(field.words) do
+		if w == term then return 3 end
+		if best == 0 and w:sub(1, #term) == term then best = 2 end
+	end
+	if best == 0 and #term >= 4 and field.text:find(term, 1, true) then best = 1 end
+	return best
+end
+
+local function scoreTerms(e, terms)
+	local valueField
+	if e.value then
+		local ok, v = pcall(e.value)
+		valueField = ok and makeField(v, WEIGHT.value) or nil
+	end
+	local total = 0
+	for _, term in ipairs(terms) do
+		local best = 0
+		for _, f in ipairs(e.fields) do
+			local q = termIn(f, term)
+			if q > 0 and q * f.weight > best then best = q * f.weight end
+		end
+		if valueField then
+			local q = termIn(valueField, term)
+			if q > 0 and q * valueField.weight > best then best = q * valueField.weight end
+		end
+		if best == 0 then return nil end
+		total = total + best
+	end
+	return total
+end
+
+function Search.Match(entries, query, keep)
+	local terms = Search.Terms(query)
+	local out = {}
+	if #terms == 0 then return out end
+	local whole = table.concat(terms, " ")
+	for i, e in ipairs(entries) do
+		if not keep or keep(e) then
+			local score = scoreTerms(e, terms)
+			if score then
+				if e.labelText == whole then score = score + 100
+				elseif e.labelText:sub(1, #whole) == whole then score = score + 30 end
+				out[#out + 1] = { entry = e, score = score, order = i }
+			end
+		end
+	end
+	table.sort(out, function(a, b)
+		if a.score ~= b.score then return a.score > b.score end
+		return a.order < b.order
+	end)
+	return out
+end
+
+-- Edit distance with swapped neighbours counting once (optimal string alignment).
+local function distance(a, b)
+	local la, lb = #a, #b
+	if la == 0 then return lb end
+	if lb == 0 then return la end
+	local prev2, prev, cur = {}, {}, {}
+	for j = 0, lb do prev[j] = j end
+	for i = 1, la do
+		cur = { [0] = i }
+		local ca = a:byte(i)
+		for j = 1, lb do
+			local cb = b:byte(j)
+			local cost = ca == cb and 0 or 1
+			local v = math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+			if i > 1 and j > 1 and ca == b:byte(j - 1) and a:byte(i - 1) == cb then v = math.min(v, prev2[j - 2] + 1) end
+			cur[j] = v
+		end
+		prev2, prev = prev, cur
+	end
+	return prev[lb]
+end
+Search.Distance = distance
+
+-- A query one or two typos away that finds something ("trasnparent" -> "transparent"), or nil.
+function Search.Suggest(entries, query, keep)
+	local terms = Search.Terms(query)
+	if #terms == 0 then return nil end
+	local vocab, seen = {}, {}
+	for _, e in ipairs(entries) do
+		if not keep or keep(e) then
+			for _, f in ipairs(e.fields) do
+				for _, w in ipairs(f.words) do
+					if #w >= 3 and not seen[w] and w:find("^[%w\128-\255]+$") then seen[w] = true; vocab[#vocab + 1] = w end
+				end
+			end
+		end
+	end
+	table.sort(vocab)
+	local changed = false
+	for i, term in ipairs(terms) do
+		local found = false
+		for _, w in ipairs(vocab) do
+			if w:sub(1, #term) == term or (#term >= 4 and w:find(term, 1, true)) then found = true break end
+		end
+		if not found then
+			local limit = #term <= 2 and 0 or #term <= 5 and 1 or #term <= 8 and 2 or 3
+			local best, bestD, bestFull
+			for _, w in ipairs(vocab) do
+				-- against the whole word, and against its start (a typo in a half-typed word)
+				local full = distance(term, w)
+				local d = math.min(full, distance(term, w:sub(1, #term)))
+				if d <= limit and (not bestD or d < bestD or (d == bestD and full < bestFull)) then best, bestD, bestFull = w, d, full end
+			end
+			if not best then return nil end
+			terms[i] = best
+			changed = true
+		end
+	end
+	if not changed then return nil end
+	local q = table.concat(terms, " ")
+	if #Search.Match(entries, q, keep) > 0 then return q end
+	return nil
+end
+
+------------------------------------------------------------------------
 -- Apps: one settings window per addon, its slash command and its Settings (AddOns) entry.
 -- Methods live in UI.App, a table that survives library upgrades, so apps made by an older
 -- copy of this file use the newest methods.
@@ -1235,7 +1496,9 @@ local function addonVersion(addon)
 	return v
 end
 
--- spec: name, addon (folder name), version (else the TOC's), tagline, slash ("/whack"), accent { r, g, b },
+-- spec: name, addon (folder name), version (else the TOC's), tagline, slash ("/whack"), aliases ({ "/whackit" }: more
+-- slash words, kept working and named in help), shortSettings (false: settings only as "/x set <setting> <value>"),
+-- accent { r, g, b },
 -- frameName (prefix for global frame names; default name without spaces), width, height,
 -- position (function returning the table the window position is saved in, as .window),
 -- buttons ({ { label, onClick(app, button), text = fn() -> label } } shown under the sidebar or along the bottom),
@@ -1271,7 +1534,8 @@ end
 -- Settings: one definition drives the window widget and the slash command.
 -- def: key, type ("bool" | "number" | "choice" | "color" | "string"), label, desc, get(), set(v),
 -- min, max, step, fmt, choices ({ { value, text } }), width, disabled(), after(v), example (for the help text),
--- hasAlpha, chatLabel (the label in chat replies when it needs more context than in the window).
+-- hasAlpha, chatLabel (the label in chat replies when it needs more context than in the window),
+-- keywords (more words the window's search finds it by, e.g. { "opacity", "alpha" }; English is fine).
 ------------------------------------------------------------------------
 function App:Setting(def)
 	assert(def.key and def.type and def.get and def.set, "setting needs key, type, get and set")
@@ -1385,9 +1649,15 @@ function App:Apply(def, v)
 	self:Refresh()
 end
 
+-- How a setting is set from chat: "/x <setting> <value>", or "/x set <setting> <value>" for an addon whose bare
+-- words mean something else (spec.shortSettings = false: "/note <text>" notes your target).
+function App:SetPrefix()
+	return self.slash .. (self.spec.shortSettings == false and " set " or " ")
+end
+
 -- "/x <setting> <value>": set it and reply with the new value; no value shows it and how to set it.
 function App:SetFromText(def, text)
-	local usage = self.slash .. " " .. def.key .. " " .. self:Example(def)
+	local usage = self:SetPrefix() .. def.key .. " " .. self:Example(def)
 	local label = def.chatLabel or def.label
 	if U.Trim(text) == "" then
 		self:Print(label .. ": " .. self:FormatValue(def, def.get()) .. ". Set it with " .. U.Escape(usage) .. " (" .. self:Accepts(def) .. ").")
@@ -1413,8 +1683,8 @@ function App:TrySetting(msg)
 end
 
 function App:PrintSettings()
-	if #self.settingOrder == 0 then self:Print("no settings.") return end
-	self:Print("settings (" .. U.Escape(self.slash) .. " <setting> <value>):")
+	if #self.settingOrder == 0 then self:Print("no settings to change from chat. " .. U.Escape(self.slash) .. " opens the window.") return end
+	self:Print("settings (" .. U.Escape(self:SetPrefix()) .. "<setting> <value>):")
 	for _, def in ipairs(self.settingOrder) do
 		DEFAULT_CHAT_FRAME:AddMessage("  " .. self:ColorCode() .. def.key .. "|r = " .. self:FormatValue(def, def.get())
 			.. "  |cff8d94a3" .. (def.chatLabel or def.label) .. " (" .. self:Accepts(def) .. ")|r")
@@ -1422,50 +1692,337 @@ function App:PrintSettings()
 end
 
 ------------------------------------------------------------------------
--- Commands
+-- Chat commands: one pattern in every addon (the full convention is COMMANDS.md next to this file).
+--   /x                         the settings window
+--   /x help | ?                every command, in one format
+--   /x <setting> <value>       also "set <setting> <value>"; "get [setting]"; a setting alone shows it
+--   /x on | off | toggle       the addon (app:OnOff); "/x off <setting>" or "/x <setting> off" for an on/off setting
+--   /x reset [section]         asks first: the same command again within 10 s does it (app:Reset)
+--   /x status | version        version, state and a health line (app:StatusLines)
+--   /x lock | unlock           anything movable (app:Movable)
+--   /x search <words>          the window with its search box filled
+--   /x feedback                a link for bugs and ideas (spec.feedbackURL)
+-- The addon's own commands (app:Command) are tried first, so an addon can give a verb its own meaning. An unknown
+-- word gets the nearest command or setting ("did you mean /x tooltip off?").
 ------------------------------------------------------------------------
--- name: the first word; usage: shown in help ("recent", "on <macro>"); run(rest, app).
+local RED, GREY = "|cffff6060", "|cff8d94a3"
+UI.RESET_SECONDS = 10
+
+-- name: the first word; usage: shown in help ("recent", "on <macro>"); run(rest, app); aliases: more first words.
+-- c.hidden = true keeps it out of help (an old name kept working).
 function App:Command(name, usage, desc, run, aliases)
-	local c = { name = name, usage = usage or name, desc = desc, run = run }
+	local c = { name = name, usage = usage or name, desc = desc, run = run, aliases = aliases }
 	self.commands[name:lower()] = c
 	self.commandOrder[#self.commandOrder + 1] = c
 	for _, a in ipairs(aliases or {}) do self.commands[a:lower()] = c end
 	return c
 end
 
-function App:Help()
-	local s = U.Escape(self.slash)
-	self:Print(self:Version() .. (self.spec.tagline and (" - " .. self.spec.tagline) or ""))
-	local cc = self:ColorCode()
-	local function line(cmd, desc) DEFAULT_CHAT_FRAME:AddMessage("  " .. cc .. U.Escape(cmd) .. "|r - " .. desc) end
-	line(self.slash, "open or close the settings window")
-	for _, c in ipairs(self.commandOrder) do
-		if not c.hidden then line(self.slash .. " " .. c.usage, c.desc or "") end
-	end
-	if #self.settingOrder > 0 then
-		line(self.slash .. " <setting> <value>", "change a setting, e.g. " .. s .. " " .. self.settingOrder[1].key .. " " .. U.Escape(self:Example(self.settingOrder[1])))
-		line(self.slash .. " settings", "list every setting and its value")
-	end
-	line(self.slash .. " help", "this list")
+-- The addon's own on/off switch, for "/x on", "/x off" and "/x toggle":
+-- def = { label = "Recording", get = fn() -> bool, set = fn(on) }.
+function App:OnOff(def)
+	assert(def and def.get and def.set, "OnOff needs get and set")
+	self.onOff = def
+	return def
 end
 
--- The whole slash command: bare opens the window; help; settings; commands; "<setting> <value>".
+-- Things the player can move, for "/x unlock", "/x lock" (and "/x move", which flips it):
+-- def = { what = "the text areas", get = fn() -> locked, set = fn(locked) }.
+function App:Movable(def)
+	assert(def and def.get and def.set, "Movable needs get and set")
+	self.movable = def
+	return def
+end
+
+-- More for "/x status": fn(app) returns a line or a list of lines (or prints its own and returns nothing).
+function App:StatusLines(fn) self.statusFn = fn end
+
+-- Something "/x reset [section]" puts back: section ("outgoing"; nil for a plain "/x reset"), what it is for the
+-- question ("the outgoing area"), run(app). Every reset asks first.
+function App:Reset(section, what, run)
+	self.resets = self.resets or {}
+	self.resetOrder = self.resetOrder or {}
+	local r = { section = section and section:lower() or "", what = what or "the settings", run = run }
+	assert(not self.resets[r.section], "duplicate reset " .. r.section)
+	self.resets[r.section] = r
+	self.resetOrder[#self.resetOrder + 1] = r
+	return r
+end
+
+local function capital(s) return (tostring(s):gsub("^%l", string.upper)) end
+
+-- "/x reset" sections in help: "reset", "reset [outgoing | incoming]" or "reset outgoing | incoming".
+local function resetUsage(app)
+	local names, plain = {}, false
+	for _, r in ipairs(app.resetOrder or {}) do
+		if r.section == "" then plain = true else names[#names + 1] = r.section end
+	end
+	if #names == 0 then return "reset" end
+	local list = table.concat(names, " | ")
+	return plain and ("reset [" .. list .. "]") or ("reset " .. list)
+end
+
+-- The built-in verbs this app offers (for help and suggestions).
+function App:Verbs()
+	local v = { "help", "get", "set", "search", "status", "version" }
+	if self.onOff then v[#v + 1] = "on"; v[#v + 1] = "off"; v[#v + 1] = "toggle" end
+	if self.movable then v[#v + 1] = "lock"; v[#v + 1] = "unlock" end
+	if self.resetOrder and #self.resetOrder > 0 then v[#v + 1] = "reset" end
+	if self.spec.feedbackURL then v[#v + 1] = "feedback" end
+	return v
+end
+
+function App:Help()
+	self:Print(self:Version() .. (self.spec.tagline and (" - " .. self.spec.tagline) or ""))
+	local cc, s = self:ColorCode(), self.slash
+	local function line(cmd, desc) DEFAULT_CHAT_FRAME:AddMessage("  " .. cc .. U.Escape(cmd) .. "|r - " .. desc) end
+	line(s, "open the settings window")
+	for _, c in ipairs(self.commandOrder) do
+		if not c.hidden then line(s .. " " .. c.usage, c.desc or "") end
+	end
+	local cmds = self.commands
+	if self.onOff and not cmds.on then
+		line(s .. " on | off | toggle", "switch " .. (self.onOff.label and self.onOff.label:lower() or self.name) .. " on or off")
+	end
+	if self.movable and not cmds.unlock then
+		line(s .. " unlock | lock", "move " .. (self.movable.what or "it") .. ", then lock again")
+	end
+	if self.resetOrder and #self.resetOrder > 0 and not cmds.reset then
+		local one = #self.resetOrder == 1 and self.resetOrder[1]
+		line(s .. " " .. resetUsage(self), "back to defaults" .. (one and (": " .. one.what) or "") .. " (asks first)")
+	end
+	if #self.settingOrder > 0 then
+		local d = self.settingOrder[1]
+		local p = self:SetPrefix()
+		line(p .. "<setting> <value>", "change a setting, e.g. " .. U.Escape(p .. d.key .. " " .. self:Example(d)))
+		line(s .. " get [setting]", "every setting and its value, or one")
+	end
+	line(s .. " search <words>", "find a setting in the window")
+	if self.spec.feedbackURL and not cmds.feedback then line(s .. " feedback", "a link for bugs and ideas") end
+	line(s .. " status | version | help", "how it is doing, its version, this list")
+	if self.spec.aliases and #self.spec.aliases > 0 then
+		DEFAULT_CHAT_FRAME:AddMessage("  " .. GREY .. "Also works as " .. U.Escape(table.concat(self.spec.aliases, ", ")) .. ".|r")
+	end
+end
+
+function App:PrintStatus()
+	local state = ""
+	if self.onOff then
+		state = " " .. (self.onOff.label or "On") .. ": " .. (self.onOff.get() and "|cff62cf88on|r" or "|cffef5d5doff|r") .. "."
+	end
+	self:Print(self:Version() .. "." .. state)
+	if not self.statusFn then return end
+	local lines = self.statusFn(self)
+	if type(lines) == "string" then lines = { lines } end
+	for _, l in ipairs(lines or {}) do DEFAULT_CHAT_FRAME:AddMessage("  " .. tostring(l)) end
+end
+
+-- "/x search <words>": the window, its search box filled. Lattice-style apps with their own window override it.
+function App:OpenSearch(text)
+	self:Open()
+	local box = self.window and self.window.searchBox
+	if not box then return end
+	text = U.Trim(text)
+	box:SetText(text)
+	if box.UpdateHint then box.UpdateHint() end
+	if text == "" then box:SetFocus() else self:Search(text) end
+end
+
+function App:HandleReset(rest)
+	local key = U.Trim(rest):lower()
+	if key == "all" and self.resets and not self.resets.all and self.resets[""] then key = "" end -- "/x reset all" = "/x reset"
+	local list = self.resetOrder or {}
+	local names = {}
+	for _, r in ipairs(list) do if r.section ~= "" then names[#names + 1] = r.section end end
+	local r = self.resets and self.resets[key]
+	if not r then
+		if #list == 0 then
+			self:Print(RED .. "nothing to reset from chat.|r The window (" .. U.Escape(self.slash) .. ") has the defaults buttons.")
+		elseif key == "" then
+			self:Print("reset what? " .. U.Escape(self.slash .. " reset " .. table.concat(names, " | ")))
+		else
+			local near = UI.Nearest(key, names)
+			self:Print(RED .. "nothing called '" .. U.Escape(key) .. "' to reset.|r "
+				.. (near and ("Did you mean " .. U.Escape(self.slash .. " reset " .. near) .. "?") or ("Choose: " .. table.concat(names, ", ") .. ".")))
+		end
+		return "reset"
+	end
+	local cmd = self.slash .. " reset" .. (key ~= "" and (" " .. key) or "")
+	local p = self.pendingReset
+	local now = GetTime()
+	if p and p.key == key and now - p.at <= UI.RESET_SECONDS then
+		self.pendingReset = nil
+		r.run(self)
+		self:Refresh()
+		self:Print(capital(r.what) .. ": back to defaults.")
+		return "reset"
+	end
+	self.pendingReset = { key = key, at = now }
+	self:Print("this puts " .. r.what .. " back to defaults. Type " .. U.Escape(cmd) .. " again within " .. UI.RESET_SECONDS .. " s to do it.")
+	return "reset-ask"
+end
+
+-- The nearest of `words` to `word`: a unique start ("stat" -> "status") or one or two typos away, else nil.
+function UI.Nearest(word, words)
+	word = tostring(word or ""):lower()
+	if word == "" then return nil end
+	local starts
+	for _, w in ipairs(words) do
+		if #word >= 2 and w:sub(1, #word) == word then
+			if starts and starts ~= w then starts = false else starts = starts == nil and w or starts end
+		end
+	end
+	if starts then return starts end
+	local limit = #word <= 2 and 0 or #word <= 5 and 1 or #word <= 8 and 2 or 3
+	local best, bestD
+	for _, w in ipairs(words) do
+		local d = Search.Distance(word, w)
+		if d <= limit and (not bestD or d < bestD) then best, bestD = w, d end
+	end
+	return best
+end
+
+-- What an unknown first word was probably meant to be: a command, a verb or a setting key; else a setting whose
+-- label, description or keywords match it ("/dv price" -> tooltip).
+function App:Suggest(word)
+	local words, seen = {}, {}
+	local function add(w) w = w:lower(); if not seen[w] then seen[w] = true; words[#words + 1] = w end end
+	for _, c in ipairs(self.commandOrder) do
+		if not c.hidden then
+			add(c.name)
+			for _, a in ipairs(c.aliases or {}) do add(a) end
+		end
+	end
+	for _, v in ipairs(self:Verbs()) do add(v) end
+	for _, def in ipairs(self.settingOrder) do add(def.key) end
+	local near = UI.Nearest(word, words)
+	if near then return near, self.settings[near] ~= nil end
+	local entries = {}
+	for _, def in ipairs(self.settingOrder) do
+		entries[#entries + 1] = Search.Entry({ label = def.label, chatLabel = def.chatLabel, key = def.key, keywords = def.keywords, desc = def.desc, def = def })
+	end
+	local found = Search.Match(entries, word)
+	if found[1] then return found[1].entry.info.def.key, true end
+	return nil
+end
+
+function App:Unknown(word, rest)
+	local near, isSetting = self:Suggest(word)
+	local try = near and (self.slash .. " " .. near .. ((rest and rest ~= "" and (isSetting or self.commands[near])) and (" " .. rest) or ""))
+	self:Print(RED .. "unknown command '" .. U.Escape(word) .. "'.|r "
+		.. (try and ("Did you mean " .. U.Escape(try) .. "? ") or "") .. U.Escape(self.slash) .. " help lists the commands.")
+end
+
+-- "/x on|off|toggle [setting]".
+local function onOffVerb(app, rest, w)
+	if rest ~= "" then
+		local key = rest:match("^(%S+)")
+		local def = app:GetSetting(key)
+		if def and def.type == "bool" then app:SetFromText(def, w) return "setting" end
+		if def then
+			app:Print(RED .. (def.chatLabel or def.label) .. " isn't on/off.|r Set it with " .. U.Escape(app:SetPrefix() .. def.key .. " " .. app:Example(def)) .. ".")
+			return "setting"
+		end
+		app:Unknown(key)
+		return "unknown"
+	end
+	local o = app.onOff
+	if not o then
+		app:Print(RED .. app.name .. " has no on/off switch of its own.|r Switch a part of it: " .. U.Escape(app.slash .. " <setting> off") .. " (" .. U.Escape(app.slash) .. " get lists them).")
+		return "unknown"
+	end
+	local on
+	if w == "toggle" then on = not o.get() else on = w == "on" end
+	o.set(on)
+	app:Refresh()
+	app:Print((o.label or app.name) .. ": " .. (o.get() and "on" or "off"))
+	return "onoff"
+end
+
+local function lockVerb(app, rest, w)
+	local m = app.movable
+	if not m then return nil end
+	local locked
+	if w == "move" then locked = not m.get() else locked = w == "lock" end
+	m.set(locked)
+	app:Refresh()
+	return locked and "lock" or "unlock"
+end
+
+-- word -> function(app, rest, word) returning what was done, or nil to go on (a setting, else unknown).
+UI.Verbs = {
+	get = function(app, rest)
+		if rest == "" then app:PrintSettings() return "settings" end
+		local def = app:GetSetting(rest:match("^(%S+)"))
+		if def then app:SetFromText(def, "") return "setting" end
+		app:Unknown(rest:match("^(%S+)"))
+		return "unknown"
+	end,
+	set = function(app, rest)
+		local key, value = rest:match("^(%S+)%s*(.*)$")
+		local def = app:GetSetting(key)
+		if def then app:SetFromText(def, value or "") return "setting" end
+		if not key then
+			app:Print("set what? " .. U.Escape(app:SetPrefix() .. "<setting> <value>") .. "; " .. U.Escape(app.slash) .. " get lists the settings.")
+			return "settings"
+		end
+		app:Unknown(key, value)
+		return "unknown"
+	end,
+	settings = function(app, rest)
+		if rest ~= "" and app:TrySetting(rest) then return "setting" end
+		app:PrintSettings()
+		return "settings"
+	end,
+	options = function(app) app:Open() return "open" end,
+	on = onOffVerb, off = onOffVerb, toggle = onOffVerb,
+	lock = lockVerb, unlock = lockVerb, move = lockVerb,
+	reset = function(app, rest) return app:HandleReset(rest) end,
+	status = function(app) app:PrintStatus() return "status" end,
+	version = function(app) app:Print(app:Version()) return "version" end,
+	search = function(app, rest) app:OpenSearch(rest) return "search" end,
+	find = function(app, rest) app:OpenSearch(rest) return "search" end,
+	feedback = function(app)
+		if not app.spec.feedbackURL then return nil end
+		app:ShowFeedback()
+		return "feedback"
+	end,
+}
+UI.Verbs.config = UI.Verbs.options
+UI.Verbs.bug = UI.Verbs.feedback
+UI.Verbs.ver = UI.Verbs.version
+
+-- The whole slash command: bare opens the window; help; the addon's commands; the shared verbs; "<setting> <value>".
 function App:HandleSlash(msg)
 	msg = U.Trim(msg)
 	if msg == "" then self:Toggle() return "toggle" end
 	local word, rest = msg:match("^(%S+)%s*(.*)$")
 	local w = word:lower()
-	if w == "help" or w == "?" then self:Help() return "help" end
+	if w == "help" or w == "?" or w == "commands" then self:Help() return "help" end
 	local c = self.commands[w]
 	if c then c.run(rest or "", self) return "command" end
-	if w == "settings" or w == "options" or w == "config" then
-		if (rest or "") == "" and w ~= "settings" then self:Open() return "open" end
-		self:PrintSettings()
-		return "settings"
+	local verb = UI.Verbs[w]
+	if verb then
+		local done = verb(self, rest or "", w)
+		if done then return done end
 	end
 	if self:TrySetting(msg) then return "setting" end
-	self:Print("|cffff6060unknown command '" .. U.Escape(word) .. "'.|r " .. U.Escape(self.slash) .. " help lists the commands.")
+	self:Unknown(word, rest)
 	return "unknown"
+end
+
+-- Registers the slash command: SLASH_<id>1 = the main command, then spec.aliases ("/everlookdb"), and
+-- SlashCmdList[id]. before(msg) returning true stops it (not ready yet, say).
+function App:RegisterSlash(id, before)
+	id = id or self.frameName:upper()
+	local words = { self.slash }
+	for _, a in ipairs(self.spec.aliases or {}) do words[#words + 1] = a end
+	for i, w in ipairs(words) do _G["SLASH_" .. id .. i] = w end
+	local app = self
+	SlashCmdList[id] = function(msg)
+		if before and before(msg) then return end
+		app:HandleSlash(msg)
+	end
 end
 
 ------------------------------------------------------------------------
@@ -1487,6 +2044,7 @@ function App:Widget(stack, key, extra)
 		label = def.label, desc = def.desc, get = def.get, disabled = def.disabled,
 		min = def.min, max = def.max, step = def.step, fmt = def.fmt, items = def.choices,
 		width = def.width, hasAlpha = def.hasAlpha, placeholder = def.placeholder,
+		keywords = def.keywords, searchKey = def.key, chatLabel = def.chatLabel,
 		set = function(v) def.set(v) end,
 		after = function() if def.after then def.after(def.get()) end; app:RefreshButtons() end,
 	}
@@ -1497,6 +2055,385 @@ function App:Widget(stack, key, extra)
 	if t == "choice" then return UI.Dropdown(stack, opt) end
 	if t == "color" then return UI.Color(stack, opt) end
 	return UI.Input(stack, opt)
+end
+
+------------------------------------------------------------------------
+-- Settings search in the window. The box sits at the top centre; typing lists the matching controls from
+-- every page. The listed controls are the real ones, borrowed from their page (its layout keeps their room)
+-- and given back when the search changes or ends, so whatever you change there is the setting itself.
+------------------------------------------------------------------------
+local MAX_RESULTS = 50
+local PATH_SEP = " \194\187 " -- " » "
+
+-- Stack:Add calls this for a widget with searchInfo on one of the app's pages.
+function App:IndexWidget(stack, frame)
+	local s = self.sections[stack.section]
+	local list = self.searchBySection and self.searchBySection[stack.section]
+	if not s or not list then return end
+	local info = {}
+	for k, v in pairs(frame.searchInfo) do info[k] = v end
+	local header = stack.searchHeader
+	if header and Search.Normalize(header) == Search.Normalize(s.title) then header = nil end -- "Options » Options"
+	info.section, info.header = s.title, header
+	local e = Search.Entry(info)
+	e.frame, e.stack, e.sectionId = frame, stack, s.id
+	e.path = s.title .. (header and (PATH_SEP .. header) or "")
+	list[#list + 1] = e
+end
+
+-- Every indexed control, in page order.
+function App:SearchEntries()
+	local all = {}
+	for _, id in ipairs(self.order) do
+		for _, e in ipairs(self.searchBySection and self.searchBySection[id] or {}) do all[#all + 1] = e end
+	end
+	return all
+end
+
+-- Build a page's widgets, hidden (ShowSection shows it; the search reads it).
+function App:BuildSection(id)
+	local f, s = self.window, self.sections[id]
+	if not f or not s or s.scroll then return s end
+	s.scroll = UI.ScrollPage(f.content)
+	s.scroll:Hide()
+	local width = f.contentWidth - 24 -- the scroll bar takes the right edge
+	s.scroll.child:SetWidth(width)
+	s.stack = UI.Stack(s.scroll.child, width, self.T)
+	s.stack.app, s.stack.section = self, id
+	self.searchBySection[id] = {}
+	s.build(s.stack, self, s)
+	s.scroll.UpdateBar()
+	s.searchFailed = nil
+	return s
+end
+
+local function DropSection(app, s)
+	if s.scroll then s.scroll:Hide(); s.scroll:SetParent(nil) end
+	s.scroll, s.stack = nil, nil
+	if app.searchBySection then app.searchBySection[s.id] = nil end
+end
+
+-- Build the pages not built yet so the search knows their settings (all of them, or with `one` just the next).
+-- A page that fails is reported once and left to be built when it is opened. True when one was built.
+function App:EnsureSearchIndex(one)
+	if not self.window then return false end
+	for _, id in ipairs(self.order) do
+		local s = self.sections[id]
+		if not s.scroll and not s.searchFailed then
+			local ok, err = pcall(self.BuildSection, self, id)
+			if not ok then
+				DropSection(self, s)
+				s.searchFailed = true
+				local handler = geterrorhandler and geterrorhandler()
+				if handler then handler(err) end
+			end
+			if one then return true end
+		end
+	end
+	return false
+end
+
+-- After the window opens: build the other pages one per frame, so the first search is instant.
+function App:WarmSearch()
+	if self.warming then return end
+	self.warming = true
+	local app = self
+	local function step()
+		if not app:IsShown() or not app:EnsureSearchIndex(true) then app.warming = nil return end
+		C_Timer.After(0, step)
+	end
+	C_Timer.After(0, step)
+end
+
+local function Listed(e) return e.frame:IsShown() end -- a control its addon hid (doesn't apply now) isn't listed
+
+-- Put a control into the results at `y`.
+function App:Borrow(e, parent, y, width)
+	local fr, se = e.frame, e.frame.stackEntry
+	if not self.borrowed[e] then
+		self.borrowed[e] = true
+		se.borrowed = true
+		fr:SetParent(parent)
+	end
+	fr:ClearAllPoints()
+	fr:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -y)
+	fr:SetWidth(width)
+	fr:SetHeight(se.height)
+	if fr.Refresh then fr:Refresh() end
+end
+
+-- Give controls back to their pages (all of them, or those not in `keep`).
+function App:ReturnBorrowed(keep)
+	if not self.borrowed then return end
+	local stacks = {}
+	for e in pairs(self.borrowed) do
+		if not (keep and keep[e]) then
+			self.borrowed[e] = nil
+			e.frame.stackEntry.borrowed = nil
+			e.frame:SetParent(e.stack.parent)
+			stacks[e.stack] = true
+		end
+	end
+	for st in pairs(stacks) do st:Relayout() end
+end
+
+function App:RefreshBorrowed(skipStack)
+	if self.refreshingResults or not self.borrowed then return end
+	self.refreshingResults = true
+	for e in pairs(self.borrowed) do
+		if e.stack ~= skipStack and e.frame.Refresh then e.frame:Refresh() end
+	end
+	self.refreshingResults = nil
+end
+
+-- Search for `text` and list what matches; an empty text ends the search. Returns the matches.
+function App:Search(text)
+	local f = self.window
+	if not f then return {} end
+	local q = U.Trim(text)
+	if q == "" then self:StopSearch() return {} end
+	self:EnsureSearchIndex()
+	if not self.searching then
+		self.searching = true
+		ClosePopup()
+		for _, s in pairs(self.sections) do if s.scroll then s.scroll:Hide() end end
+	end
+	local entries = self:SearchEntries()
+	self.searchQuery = q
+	local results = Search.Match(entries, q, Listed)
+	self:ShowResults(results, q, entries)
+	return results
+end
+
+function App:ShowResults(results, q, entries)
+	local f, T = self.window, self.T
+	local R = f.results
+	local child = R.child
+	local width = f.contentWidth - 24
+	local n = math.min(#results, MAX_RESULTS)
+	local want = {}
+	for i = 1, n do want[results[i].entry] = true end
+	self:ReturnBorrowed(want)
+	for _, row in ipairs(R.paths) do row.entry = nil; row:Hide() end
+	R.empty:Hide()
+	R.suggest:Hide()
+	R.more:Hide()
+	local y = 4
+	if n == 0 then
+		R.empty:SetText(("No setting matches '%s'."):format(U.Escape(q)))
+		R.empty:Show()
+		y = y + 22
+		local sug = Search.Suggest(entries, q, Listed)
+		R.suggest.query = sug
+		if sug then
+			R.suggest.label:SetText("Did you mean |cff" .. hex(T.accent) .. U.Escape(sug) .. "|r?")
+			R.suggest:SetWidth(math.min(width, (R.suggest.label:GetStringWidth() or 200) + 4))
+			R.suggest:Show()
+			y = y + 22
+		end
+	else
+		for i = 1, n do
+			local e = results[i].entry
+			local row = R.paths[i] or R.NewPath(i)
+			row.entry = e
+			row.text:SetText(e.path)
+			local tw = row.text.GetUnboundedStringWidth and row.text:GetUnboundedStringWidth() or row.text:GetStringWidth() or 200
+			row:SetWidth(math.min(width, (tw or 200) + 4))
+			row:ClearAllPoints()
+			row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
+			row:Show()
+			y = y + 17
+			self:Borrow(e, child, y, width)
+			y = y + e.frame.stackEntry.height + 18
+		end
+		if #results > n then
+			R.more:SetText(("%d more. Add a word to narrow it down."):format(#results - n))
+			R.more:ClearAllPoints()
+			R.more:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
+			R.more:Show()
+			y = y + 20
+		end
+	end
+	child:SetHeight(y + T.pad)
+	R:Show()
+	R.SetScroll(0)
+	R.UpdateBar()
+end
+
+-- End the search: the controls go back and the page you were on shows again.
+function App:StopSearch()
+	local f = self.window
+	if f and f.searchBox and f.searchBox:GetText() ~= "" then f.searchBox:SetText("") end
+	if not self.searching then return end
+	self.searching = nil
+	self:ReturnBorrowed()
+	ClosePopup()
+	f.results:Hide()
+	local s = self.current and self.sections[self.current]
+	if s and s.scroll then
+		s.stack:RefreshAll()
+		s.scroll:Show()
+	end
+end
+
+-- From a result's path: open its page, scroll to it and light it up for a moment.
+function App:JumpTo(e)
+	local id = e.sectionId
+	self:StopSearch()
+	self:ShowSection(id)
+	local s = self.sections[id]
+	if self.current ~= id or not s or e.stack ~= s.stack then return end -- kept on the page (unsaved changes) or rebuilt
+	local se = e.frame.stackEntry
+	if s.scroll.SetScroll and se and se.y then s.scroll.SetScroll(se.y - 12) end
+	self:Flash(e.frame)
+end
+
+function App:Flash(frame)
+	local T = self.T
+	local tex = rawget(frame, "eluiFlash")
+	if not tex then
+		tex = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+		tex:SetTexture(U.WHITE)
+		tex:SetPoint("TOPLEFT", -6, 4)
+		tex:SetPoint("BOTTOMRIGHT", 6, -4)
+		frame.eluiFlash = tex
+	end
+	tex:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 1)
+	tex:SetAlpha(0.28)
+	tex:Show()
+	local driver = self.flashDriver
+	if not driver then
+		driver = CreateFrame("Frame")
+		self.flashDriver = driver
+	end
+	if driver.tex and driver.tex ~= tex then driver.tex:Hide() end
+	driver.tex = tex
+	local start = GetTime()
+	driver:SetScript("OnUpdate", function(d)
+		local t = GetTime() - start
+		if t >= 1.8 then tex:Hide(); d.tex = nil; d:SetScript("OnUpdate", nil) return end
+		tex:SetAlpha(t < 0.6 and 0.28 or 0.28 * (1 - (t - 0.6) / 1.2))
+	end)
+end
+
+-- The box, the results page and the keys (Ctrl+F, Escape). Called by CreateWindow.
+function App:CreateSearch(f, width)
+	local app, T = self, self.T
+	self.borrowed = self.borrowed or {}
+	self.searchBySection = self.searchBySection or {}
+
+	local box = UI.EditBox(f, width, 26)
+	box:SetTextInsets(26, 26, 0, 0)
+	box:SetMaxLetters(60)
+	local icon = box:CreateTexture(nil, "OVERLAY")
+	icon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+	icon:SetSize(14, 14)
+	icon:SetPoint("LEFT", 8, -1)
+	icon:SetVertexColor(rgba(T.muted))
+	local hint = Text(box, T.font, T.muted)
+	hint:SetPoint("LEFT", 26, 0)
+	hint:SetText("Search settings")
+	local keyHint = Text(box, T.fontSmall, T.muted)
+	keyHint:SetPoint("RIGHT", -9, 0)
+	keyHint:SetText("Ctrl+F")
+	local clear = CreateFrame("Button", nil, box)
+	clear:SetSize(22, 22)
+	clear:SetPoint("RIGHT", -2, 0)
+	local cx = Text(clear, T.font, T.muted)
+	cx:SetPoint("CENTER")
+	cx:SetText("x")
+	clear:SetScript("OnEnter", function() cx:SetTextColor(rgba(T.text)) end)
+	clear:SetScript("OnLeave", function() cx:SetTextColor(rgba(T.muted)) end)
+	clear:SetScript("OnClick", function() app:StopSearch(); box:SetFocus() end)
+	Tooltip(clear, "Clear the search")
+
+	local function update()
+		local empty = (box:GetText() or "") == ""
+		hint:SetShown(empty)
+		keyHint:SetShown(empty and not box:HasFocus())
+		clear:SetShown(not empty)
+	end
+	box.UpdateHint = update
+	box:HookScript("OnEditFocusGained", update)
+	box:HookScript("OnEditFocusLost", update)
+	-- searches once per frame at most, however fast you type or paste
+	local pending
+	box:SetScript("OnTextChanged", function(self, user)
+		update()
+		if not user or pending then return end
+		pending = true
+		C_Timer.After(0, function()
+			pending = nil
+			if f:IsShown() then app:Search(box:GetText()) end
+		end)
+	end)
+	box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+	-- Escape clears the search; Escape in an empty box closes the window
+	box:SetScript("OnEscapePressed", function(self)
+		local had = (self:GetText() or "") ~= "" or app.searching
+		self:ClearFocus()
+		if had then app:StopSearch() else app:Close() end
+	end)
+	update()
+	f.searchBox = box
+
+	-- the results page, in the content area in place of the page you were on
+	local R = UI.ScrollPage(f.content)
+	R:Hide()
+	R.child:SetWidth(f.contentWidth - 24)
+	R.paths = {}
+	function R.NewPath(i)
+		local b = CreateFrame("Button", nil, R.child)
+		b:SetHeight(14)
+		b.text = Text(b, T.fontSmall + 1, T.muted)
+		b.text:SetPoint("LEFT")
+		b.text:SetWordWrap(false)
+		b:SetScript("OnEnter", function(self)
+			self.text:SetTextColor(rgba(T.accent))
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:AddLine("Go to this setting", 1, 1, 1)
+			GameTooltip:Show()
+		end)
+		b:SetScript("OnLeave", function(self)
+			self.text:SetTextColor(rgba(T.muted))
+			GameTooltip:Hide()
+		end)
+		b:SetScript("OnClick", function(self) if self.entry then app:JumpTo(self.entry) end end)
+		R.paths[i] = b
+		return b
+	end
+	R.empty = Text(R.child, T.font, T.text)
+	R.empty:SetPoint("TOPLEFT", 0, -4)
+	R.empty:SetPoint("RIGHT")
+	R.empty:Hide()
+	R.suggest = CreateFrame("Button", nil, R.child)
+	R.suggest:SetHeight(18)
+	R.suggest:SetPoint("TOPLEFT", 0, -26)
+	R.suggest.label = Text(R.suggest, T.font, T.muted)
+	R.suggest.label:SetPoint("LEFT")
+	R.suggest.label:SetWordWrap(false)
+	R.suggest:SetScript("OnClick", function(self)
+		if not self.query then return end
+		box:SetText(self.query)
+		box.UpdateHint()
+		app:Search(self.query)
+	end)
+	R.suggest:Hide()
+	R.more = Text(R.child, T.fontSmall + 1, T.muted)
+	R.more:Hide()
+	f.results = R
+
+	f.eluiKey = function(_, key)
+		if key == "F" and IsControlKeyDown() then
+			box:SetFocus()
+			box:HighlightText()
+			return true
+		end
+	end
+	f.eluiEscape = function()
+		if app.searching or (box:GetText() or "") ~= "" then app:StopSearch() return true end
+	end
+	return box
 end
 
 local function SavePosition(app, f)
@@ -1556,7 +2493,7 @@ function App:CreateWindow()
 		buttons[#buttons + 1] = { label = "Feedback / report a bug", onClick = function() app:ShowFeedback() end }
 	end
 
-	local contentLeft, contentTop, contentBottom
+	local contentLeft, contentTop, contentBottom, titleRight
 	if sidebar then
 		local side = CreateFrame("Frame", nil, f)
 		side:SetPoint("TOPLEFT", 1, -1)
@@ -1629,7 +2566,7 @@ function App:CreateWindow()
 			local b = footerButton(side, d, SIDEBAR_W - 16)
 			b:SetPoint("BOTTOMLEFT", 8, 12 + (#buttons - i) * 32)
 		end
-		contentLeft, contentTop, contentBottom = SIDEBAR_W + 1 + T.pad + 8, -T.pad - 8, T.pad
+		contentLeft, contentTop, contentBottom = SIDEBAR_W + 1 + T.pad + 8, -52, T.pad -- the search box sits above
 	else
 		local title = Text(f, T.fontHuge, T.text)
 		title:SetPoint("TOPLEFT", T.pad, -14)
@@ -1638,6 +2575,8 @@ function App:CreateWindow()
 		local ver = Text(f, T.fontSmall, T.muted)
 		ver:SetPoint("BOTTOMLEFT", title, "BOTTOMRIGHT", 8, 1)
 		ver:SetText(self:Version())
+		local function width(fs) return fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or fs:GetStringWidth() or 0 end
+		titleRight = T.pad + (width(title) or 0) + 8 + (width(ver) or 0)
 		local top = 44
 		if spec.tagline then
 			local tag = Text(f, T.fontSmall + 1, T.muted)
@@ -1685,12 +2624,29 @@ function App:CreateWindow()
 	f.content = content
 	f.contentWidth = W - contentLeft - T.pad
 
+	-- the search box, top centre: over the page column, or in the title row of a one-page window
+	if sidebar then
+		local boxW = math.min(300, W - SIDEBAR_W - 120)
+		local box = self:CreateSearch(f, boxW)
+		box:SetPoint("TOP", f, "TOPLEFT", SIDEBAR_W + 1 + (W - SIDEBAR_W - 1) / 2, -12)
+	else
+		local boxW, right = 240, W - 44 -- clear of the close button
+		local left = math.floor((W - boxW) / 2)
+		if left < titleRight + 16 then left = math.ceil(titleRight + 16) end
+		if left + boxW > right then boxW = math.max(140, right - left) end
+		local box = self:CreateSearch(f, boxW)
+		box:SetPoint("TOPLEFT", f, "TOPLEFT", left, -10)
+	end
+
 	f:SetScript("OnShow", function()
 		app:RefreshButtons()
 		if spec.onShow then spec.onShow(app) end
+		app:WarmSearch()
 	end)
 	f:SetScript("OnHide", function()
 		ClosePopup()
+		f.searchBox:ClearFocus()
+		app:StopSearch()
 		if spec.onHide then spec.onHide(app) end
 	end)
 	UI.CloseOnEscape(f)
@@ -1712,6 +2668,7 @@ function App:ShowSection(id)
 	local s = self.sections[id]
 	if not s then return end
 	ClosePopup()
+	if self.searching then self:StopSearch() end -- a page picked in the sidebar ends the search
 	for sid, other in pairs(self.sections) do
 		if other.scroll then other.scroll:SetShown(sid == id) end
 		local b = f.navButtons and f.navButtons[sid]
@@ -1724,12 +2681,7 @@ function App:ShowSection(id)
 	end
 	self.current = id
 	if not s.scroll then
-		s.scroll = UI.ScrollPage(f.content)
-		local width = f.contentWidth - 24 -- the scroll bar takes the right edge
-		s.scroll.child:SetWidth(width)
-		s.stack = UI.Stack(s.scroll.child, width, self.T)
-		s.build(s.stack, self, s)
-		s.scroll.UpdateBar()
+		self:BuildSection(id)
 	else
 		s.stack:RefreshAll()
 	end
@@ -1740,16 +2692,20 @@ end
 function App:RebuildSection(id)
 	local s = self.sections[id]
 	if not s or not s.scroll then return end
-	s.scroll:Hide()
-	s.scroll:SetParent(nil)
-	s.scroll, s.stack = nil, nil
-	if self.current == id and self:IsShown() then self:ShowSection(id) end
+	if self.searching then self:ReturnBorrowed() end
+	DropSection(self, s)
+	if self.searching then
+		self:Search(self.searchQuery or "") -- builds it again for the results
+	elseif self.current == id and self:IsShown() then
+		self:ShowSection(id)
+	end
 end
 
 -- Re-read every value shown in the open window.
 function App:Refresh()
 	if not self.window then return end
 	self:RefreshButtons()
+	if self.searching then self:RefreshBorrowed() return end
 	local s = self.current and self.sections[self.current]
 	if s and s.stack then s.stack:RefreshAll() end
 end
