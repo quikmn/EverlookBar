@@ -183,6 +183,13 @@ Widget.__index = function(self, key)
 end
 
 function CreateFrame(kind, name, parent) return newWidget(kind, name, parent) end
+function EnumerateFrames(after)
+	local seen = after == nil
+	for _, w in ipairs(MOCK.widgets) do
+		if seen and not REGION[w.__kind] then return w end
+		if w == after then seen = true end
+	end
+end
 UIParent = newWidget("Frame", "UIParent", nil)
 UIParent.__w, UIParent.__h = 1920, 1080
 DEFAULT_CHAT_FRAME = newWidget("Frame", "DEFAULT_CHAT_FRAME")

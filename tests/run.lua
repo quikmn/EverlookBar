@@ -573,6 +573,40 @@ step("minimap: drawer opens beside its button, flips when there is no room", fun
 	check(mm.drawer:IsClampedToScreen(), "clamped to the screen")
 end)
 
+step("minimap: coordinates under the minimap: Blizzard's hidden, other addons named with the setting", function()
+	local mm = ns.modules.minimap
+	local coords = MinimapCluster.MinimapContainer.PlayerCoords
+	check(not coords:IsShown(), "Blizzard's coordinates hidden by default")
+	-- another addon's coordinates text under the minimap: listed by the scan, with its owner
+	MOCK.addons[#MOCK.addons + 1] = "SomeCoords"
+	MOCK.loaded.SomeCoords = true
+	local f = CreateFrame("Frame", "SomeCoordsFrame", UIParent)
+	f:SetSize(80, 14); f.__left, f.__bottom = mm.holder.__left or 100, 380
+	local fs = f:CreateFontString(); fs:SetText("49.5, 55.7")
+	fs.__w, fs.__h = 80, 14; fs.__left, fs.__bottom = Minimap:GetLeft() + 30, Minimap:GetBottom() - 20
+	local secretFrame = CreateFrame("Frame", "SecretTextFrame", UIParent)
+	local sfs = secretFrame:CreateFontString(); sfs:SetText(S("hidden")); sfs.__left, sfs.__bottom = fs.__left, fs.__bottom
+	local found = mm:ScanText()
+	local hit
+	for _, x in ipairs(found) do if x.name == "SomeCoordsFrame" then hit = x end end
+	check(hit, "scan lists the other addon's text")
+	eq(hit.owner, "SomeCoords", "and its addon")
+	eq(hit.text, "49.5, 55.7")
+	for _, x in ipairs(found) do check(x.name ~= "SecretTextFrame", "secret text skipped, not read") end
+	MOCK.log = {}
+	slash("minimap scan")
+	check(logHas("SomeCoordsFrame (SomeCoords)"), "scan prints it")
+	f:Hide()
+	-- Questie's own minimap coordinates: told once, with the setting to switch off
+	Questie = { db = { profile = { minimapCoordinatesEnabled = true } } }
+	MOCK.log = {}
+	mm:TellForeignCoords(); mm:TellForeignCoords()
+	local n = 0
+	for _, l in ipairs(MOCK.log) do if l:find("Show Minimap Coordinates", 1, true) then n = n + 1 end end
+	eq(n, 1, "told once, naming the setting")
+	Questie = nil
+end)
+
 step("minimap: round and square masks, border behind the map", function()
 	local mm = ns.modules.minimap
 	local db = ns:ModuleDB("minimap")

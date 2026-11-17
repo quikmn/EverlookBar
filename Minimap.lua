@@ -261,6 +261,110 @@ function M:Report()
 		ns:Print(e.label .. " [" .. self:Mode(e.key) .. "]: " .. (#names > 0 and table.concat(names, ", ") or "|cff8d94a3not in this client|r"))
 	end
 	ns:Print("addon buttons held: " .. #heldList .. (self.buttonRival and (" (|cffffd25a" .. self.buttonRival .. " collects them|r)") or ""))
+	for _, c in ipairs(self:ForeignCoords()) do ns:Print("|cffffd25a" .. c.addon .. "|r: " .. c.fix) end
+	local found = self:ScanText()
+	if #found == 0 then
+		ns:Print("no other text shown around the minimap.")
+	else
+		ns:Print("text shown around the minimap (not ours):")
+		for _, f in ipairs(found) do
+			ns:Print("  " .. U.Escape(f.name) .. " (" .. f.owner .. "): \"" .. U.Escape(f.text) .. "\"")
+		end
+	end
+end
+
+------------------------------------------------------------------------
+-- Coordinates from other addons. Blizzard's own (MinimapCluster.MinimapContainer.PlayerCoords) is the "coords"
+-- element above and is hidden cleanly. Another addon's own feature is not fought: we say which setting turns it off.
+------------------------------------------------------------------------
+function M:ForeignCoords()
+	local out = {}
+	local q = type(Questie) == "table" and type(Questie.db) == "table" and type(Questie.db.profile) == "table" and Questie.db.profile
+	if q and q.minimapCoordinatesEnabled == true then
+		out[#out + 1] = { addon = "Questie", fix = "puts coordinates in the minimap zone text. Turn it off: /questie > General > untick \"Show Minimap Coordinates\"." }
+	end
+	local tt = type(TomTom) == "table" and type(TomTom.profile) == "table" and TomTom.profile.block
+	if type(tt) == "table" and tt.enable and TomTomBlock and TomTomBlock.IsShown and TomTomBlock:IsShown() then
+		out[#out + 1] = { addon = "TomTom", fix = "shows a coordinate block. Turn it off: /tomtom > Coordinate Block > untick \"Enable coordinate block\"." }
+	end
+	return out
+end
+
+-- Tell once per session, in chat, about another addon's coordinates.
+function M:TellForeignCoords()
+	if self.toldCoords then return end
+	local list = self:ForeignCoords()
+	if #list == 0 then return end
+	self.toldCoords = true
+	for _, c in ipairs(list) do
+		ns:Print("coordinates near the minimap come from |cffffd25a" .. c.addon .. "|r, which " .. c.fix)
+	end
+end
+
+-- The loaded addon a frame most likely belongs to, from its name.
+local function ownerOf(name)
+	if not name or name == "" then return "unknown addon" end
+	if name:find("^Minimap") or name:find("^MiniMap") or name:find("^GameTime") or name:find("^TimeManager") then return "Blizzard" end
+	local n = (C_AddOns and C_AddOns.GetNumAddOns and C_AddOns.GetNumAddOns()) or 0
+	local best
+	for i = 1, n do
+		local a = C_AddOns.GetAddOnInfo(i)
+		if type(a) == "string" and loaded(a) then
+			local stem = a:gsub("[_%-%s]", "")
+			if (name:sub(1, #a) == a or name:sub(1, #stem) == stem) and (not best or #a > #best) then best = a end
+		end
+	end
+	return best or "unknown addon"
+end
+M.OwnerOf = ownerOf
+
+-- "Parent.Key" for an unnamed frame, else its name.
+local function nameOf(f)
+	local n = f.GetName and f:GetName()
+	if n then return n end
+	local p = f.GetParent and f:GetParent()
+	if p then
+		local pn = p.GetName and p:GetName()
+		for k, v in pairs(p) do
+			if v == f and type(k) == "string" then return (pn or "?") .. "." .. k end
+		end
+		if pn then return pn .. ".(child)" end
+	end
+	return "(unnamed)"
+end
+
+-- Every visible text near the minimap that is not ours: FontStrings of shown frames within 60 px of the map.
+function M:ScanText()
+	local found = {}
+	local s = (ns.Num(Minimap:GetEffectiveScale()) or 1)
+	local l, b, w, h = ns.Num(Minimap:GetLeft()), ns.Num(Minimap:GetBottom()), ns.Num(Minimap:GetWidth()), ns.Num(Minimap:GetHeight())
+	if not (l and b and w and h) or not EnumerateFrames then return found end
+	local m = 60
+	local L, B, R, T = l * s - m, b * s - m, (l + w) * s + m, (b + h) * s + m
+	local f, guard = EnumerateFrames(), 0
+	while f and guard < 30000 do
+		guard = guard + 1
+		local name = f.GetName and f:GetName()
+		if f.IsVisible and f:IsVisible() and f.GetRegions and not (name and name:find("^" .. ns.PREFIX)) and f ~= M.overlay
+			and not (M.overlay and f:GetParent() == M.overlay) then
+			for _, r in ipairs({ f:GetRegions() }) do
+				if r.GetObjectType and r:GetObjectType() == "FontString" and r:IsVisible() then
+					local text = ns.Str(r:GetText())
+					if text and text:find("%S") then
+						local es = ns.Num(r:GetEffectiveScale()) or s
+						local x, y = r:GetCenter()
+						x, y = ns.Num(x), ns.Num(y)
+						if x and y and x * es >= L and x * es <= R and y * es >= B and y * es <= T then
+							local fname = nameOf(f)
+							found[#found + 1] = { name = fname, owner = ownerOf(name or fname), text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") }
+						end
+					end
+				end
+			end
+		end
+		f = EnumerateFrames(f)
+	end
+	return found
 end
 
 ------------------------------------------------------------------------
@@ -916,7 +1020,10 @@ function M:Enable()
 			ns:Print(M.buttonRival .. " already collects minimap buttons, so " .. ns.NAME .. " leaves them to it.")
 		end
 		M:ApplyAll()
+		-- other addons' coordinate features: say once which setting turns them off
+		C_Timer.After(5, function() if M.running then M:TellForeignCoords() end end)
 	end
+	mdb().drawerPos = nil -- the drawer is no longer dragged anywhere: it opens beside its button
 	if IsLoggedIn and IsLoggedIn() then start() else ns.On("PLAYER_LOGIN", self, start) end
 	-- combat starts: drop what is being dragged where it is and lock
 	ns.On("PLAYER_REGEN_DISABLED", self, function()
