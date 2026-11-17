@@ -171,6 +171,12 @@ app:Setting({ key = "minimap.unlocked", type = "bool", label = "Unlock minimap (
 	disabled = function() return not mm.running or mm.stepAside ~= nil end })
 mmSetting("scale", { type = "number", label = "Minimap size", min = 0.5, max = 2.5, step = 0.05, fmt = "%.2f" })
 mmSetting("snapEdges", { type = "bool", label = "Snap to screen edges when dropped" })
+mmSetting("zoneLabel", { type = "choice", label = "Zone line on the minimap", width = 260, choices = {
+	{ value = "off", text = "Off" }, { value = "subzone", text = "Where you stand (subzone)" },
+	{ value = "zone", text = "The zone" }, { value = "both", text = "Zone: subzone" } } })
+mmSetting("zoneLabelPos", { type = "choice", label = "Zone line position", width = 200, choices = {
+	{ value = "top", text = "Above the minimap" }, { value = "bottom", text = "Under the minimap" } },
+	disabled = function() return not mm.running or mm.stepAside ~= nil or ns:ModuleDB("minimap").zoneLabel == "off" end })
 mmSetting("borderSize", { type = "number", label = "Border thickness", min = 1, max = 8, step = 1 })
 mmSetting("shape", { type = "choice", label = "Shape", width = 200, choices = { { value = "round", text = "Round" }, { value = "square", text = "Square" } } })
 mmSetting("border", { type = "bool", label = "Thin border" })
@@ -578,8 +584,16 @@ app:Section("minimap", "Minimap", function(stack)
 	app:Widget(stack, "minimap.scale"); app:Widget(stack, "minimap.snapedges"); app:Widget(stack, "minimap.shape")
 	app:Widget(stack, "minimap.border"); app:Widget(stack, "minimap.bordersize"); app:Widget(stack, "minimap.bordercolor")
 	app:Widget(stack, "minimap.wheelzoom")
-	UI.Header(stack, "Pieces around the minimap", "Hide them, leave them, or move them (drag them in unlock mode).")
+	app:Widget(stack, "minimap.zonelabel"); app:Widget(stack, "minimap.zonelabelpos")
+	UI.Header(stack, "Pieces around the minimap", "Blizzard's pieces: hide them, leave them, or move them (drag them in " .. ns.SLASH .. " unlock).")
 	for _, e in ipairs(mm.ELEMENTS) do app:Widget(stack, "minimap." .. e.key) end
+	UI.Note(stack, function()
+		local list = mm.running and mm:ForeignCoords() or {}
+		if #list == 0 then return "Still see text by the minimap? " .. ns.SLASH .. " minimap scan lists it with the addon it comes from." end
+		local s = ""
+		for _, c in ipairs(list) do s = s .. "|cffffd25a" .. c.addon .. "|r " .. c.fix .. "\n" end
+		return s
+	end)
 	UI.Header(stack, "Addon buttons", "LibDBIcon buttons and loose buttons on the minimap.")
 	app:Widget(stack, "minimap.buttons"); app:Widget(stack, "minimap.drawercorner"); app:Widget(stack, "minimap.drawercols")
 	UI.ButtonRow(stack, { { label = "Look for buttons again", width = 190, onClick = function() mm:ApplyAll(); app:Refresh() end } })

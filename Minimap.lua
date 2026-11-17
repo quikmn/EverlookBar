@@ -13,6 +13,8 @@ local M = ns:NewModule({
 	desc = "Move, scale and tidy the minimap; collect addon buttons into one drawer.",
 	defaults = {
 		snapEdges = true,      -- a dropped minimap snaps flush to a screen edge within 12 px
+		zoneLabel = "off",     -- our own zone line: off | subzone | zone | both
+		zoneLabelPos = "top",  -- top | bottom
 		point = nil,           -- { x, y }: the minimap's centre on screen (UIParent units, from bottom-left)
 		scale = 1,
 		shape = "round",       -- round | square
@@ -508,6 +510,7 @@ function M:ApplyFrame()
 		end)
 	end
 	if self.ApplyUnlock then self:ApplyUnlock() end
+	if self.ApplyZoneLabel then self:ApplyZoneLabel() end
 end
 
 function M.ClampScale(v) return math.max(0.5, math.min(2.5, tonumber(v) or 1)) end
@@ -995,6 +998,68 @@ end
 function M:Held() return heldList end
 
 ------------------------------------------------------------------------
+-- Our own zone line over (or under) the minimap: the subzone you stand in, the zone, or both, coloured like the
+-- game's zone text (sanctuary, friendly, hostile, contested).
+------------------------------------------------------------------------
+local zoneLabel
+local zoneEvents = { name = ns.NAME .. " minimap zone" }
+local PVP_COLORS = {
+	sanctuary = { 0.41, 0.8, 0.94 }, friendly = { 0.1, 1, 0.1 }, hostile = { 1, 0.1, 0.1 }, arena = { 1, 0.1, 0.1 },
+	contested = { 1, 0.7, 0 }, combat = { 1, 0.1, 0.1 },
+}
+
+-- The text for a mode from the zone and subzone names (plain strings or nil). Pure.
+function M.ZoneLabelText(mode, zone, sub)
+	zone = (zone and zone ~= "") and zone or nil
+	sub = (sub and sub ~= "") and sub or nil
+	if mode == "zone" then return zone or sub or "" end
+	if mode == "both" then
+		if zone and sub and sub ~= zone then return zone .. ": " .. sub end
+		return zone or sub or ""
+	end
+	return sub or zone or "" -- subzone, else the zone (open country has no subzone)
+end
+
+function M:UpdateZoneLabel()
+	if not zoneLabel or not zoneLabel:IsShown() then return end
+	local mode = mdb().zoneLabel
+	local zone, sub = ns.Str(GetZoneText and GetZoneText()), ns.Str(GetSubZoneText and GetSubZoneText())
+	zoneLabel:SetText(M.ZoneLabelText(mode, zone, sub))
+	local pvp = ns.Str(GetZonePVPInfo and (GetZonePVPInfo()))
+	local c = pvp and PVP_COLORS[pvp] or { 1, 0.82, 0 }
+	zoneLabel:SetTextColor(c[1], c[2], c[3])
+end
+
+function M:ApplyZoneLabel()
+	local db = mdb()
+	local on = db.zoneLabel and db.zoneLabel ~= "off" and holder and not self.stepAside and self.running
+	if not on then
+		if zoneLabel then zoneLabel:Hide() end
+		ns.OffAll(zoneEvents)
+		return
+	end
+	if not zoneLabel then
+		zoneLabel = holder:CreateFontString(ns.PREFIX .. "MinimapZoneLabel", "OVERLAY")
+		U.SetFont(zoneLabel, 12, "OUTLINE")
+		zoneLabel:SetJustifyH("CENTER")
+		zoneLabel:SetWordWrap(false)
+		M.zoneLabel = zoneLabel
+	end
+	zoneLabel:ClearAllPoints()
+	zoneLabel:SetWidth((ns.Num(Minimap:GetWidth()) or 140) + 40)
+	if db.zoneLabelPos == "bottom" then
+		zoneLabel:SetPoint("TOP", Minimap, "BOTTOM", 0, -5)
+	else
+		zoneLabel:SetPoint("BOTTOM", Minimap, "TOP", 0, 5)
+	end
+	zoneLabel:Show()
+	for _, e in ipairs({ "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" }) do
+		ns.On(e, zoneEvents, function() M:UpdateZoneLabel() end)
+	end
+	self:UpdateZoneLabel()
+end
+
+------------------------------------------------------------------------
 -- Lifecycle
 ------------------------------------------------------------------------
 function M:ApplyAll()
@@ -1048,6 +1113,7 @@ end
 
 function M:Disable()
 	self:SetUnlocked(false, true)
+	self:ApplyZoneLabel()
 	for obj in pairs(taken) do restore(obj) end
 	self:ReleaseButtons()
 	if drawerToggle then drawerToggle:Hide() end

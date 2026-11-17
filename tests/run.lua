@@ -607,6 +607,29 @@ step("minimap: coordinates under the minimap: Blizzard's hidden, other addons na
 	Questie = nil
 end)
 
+step("minimap: zone line shows the subzone, follows zone changes", function()
+	local mm = ns.modules.minimap
+	eq(mm.ZoneLabelText("subzone", "Hillsbrad Foothills", "Tarren Mill"), "Tarren Mill")
+	eq(mm.ZoneLabelText("subzone", "Hillsbrad Foothills", ""), "Hillsbrad Foothills", "no subzone: the zone")
+	eq(mm.ZoneLabelText("zone", "Hillsbrad Foothills", "Tarren Mill"), "Hillsbrad Foothills")
+	eq(mm.ZoneLabelText("both", "Hillsbrad Foothills", "Tarren Mill"), "Hillsbrad Foothills: Tarren Mill")
+	eq(mm.ZoneLabelText("both", "Orgrimmar", "Orgrimmar"), "Orgrimmar", "no doubling")
+	check(not mm.zoneLabel or not mm.zoneLabel:IsShown(), "off by default")
+	slash("minimap.zonelabel subzone")
+	check(mm.zoneLabel and mm.zoneLabel:IsShown(), "shown")
+	eq(mm.zoneLabel:GetText(), "Tarren Mill", "the subzone")
+	MOCK.zone = { "Hillsbrad Foothills", "Southshore", "contested" }
+	MOCK.Fire("ZONE_CHANGED")
+	eq(mm.zoneLabel:GetText(), "Southshore", "follows the player")
+	slash("minimap.zonelabelpos bottom")
+	local p, rel, rp = mm.zoneLabel:GetPoint(1)
+	eq(p, "TOP"); eq(rel, Minimap); eq(rp, "BOTTOM")
+	slash("minimap.zonelabel off")
+	check(not mm.zoneLabel:IsShown(), "off again")
+	MOCK.zone = { "Hillsbrad Foothills", "Tarren Mill", "contested" }
+	ns:ModuleDB("minimap").zoneLabelPos = "top"
+end)
+
 step("minimap: round and square masks, border behind the map", function()
 	local mm = ns.modules.minimap
 	local db = ns:ModuleDB("minimap")
