@@ -491,6 +491,96 @@ step("minimap: round and square masks, border behind the map", function()
 	check(b:IsShown(), "border on")
 end)
 
+-- Drag a frame of ours the way the client does: StartMoving, the cursor moves it, StopMovingOrSizing.
+local function drag(frame, dragged, left, bottom)
+	frame.__scripts.OnDragStart(frame, "LeftButton")
+	check(dragged.__moving, "StartMoving on the holder")
+	dragged.__left, dragged.__bottom = left, bottom
+	frame.__scripts.OnDragStop(frame)
+	check(not dragged.__moving, "StopMovingOrSizing")
+end
+
+step("minimap: unlock, left-drag the map itself, lock (general unlock mode off)", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	check(not ns.Unlock.active, "general unlock mode is off")
+	check(not mm.unlocked, "locked after login")
+	check(not (mm.overlay and mm.overlay:IsShown()), "no mover while locked: clicks go to the map")
+	-- the first control on the minimap page is the unlock toggle
+	local src = assert(io.open(ROOT .. "/Options.lua")):read("*a")
+	local page = src:sub((src:find('app:Section("minimap"', 1, true)))
+	eq(page:match('app:Widget%(stack, "([^"]+)"'), "minimap.unlocked", "first control on the minimap page")
+	slash("minimap.unlocked on")
+	check(mm.unlocked, "unlocked from the setting")
+	local ov = mm.overlay
+	check(ov:IsShown() and ov:IsMouseEnabled(), "mover over the map, taking the mouse")
+	eq(ov:GetFrameStrata(), "HIGH", "above the map and its buttons")
+	check(ov.handle and ov.lock, "handle with a lock button")
+	-- drag: lands where dropped
+	drag(ov, mm.holder, 700, 500)
+	eq(db.point[1], 770, "x saved (centre)"); eq(db.point[2], 570, "y saved")
+	-- snap: dropped 5 px from the right edge -> flush
+	drag(ov, mm.holder, 1920 - 140 - 5, 300)
+	eq(db.point[1], 1920 - 70, "snapped to the right edge")
+	-- dragged half off screen -> back on screen
+	drag(ov.handle, mm.holder, -60, 300)
+	eq(db.point[1], 70, "kept on screen")
+	-- wheel: size in 5% steps, saved
+	ov.__scripts.OnMouseWheel(ov, 1)
+	eq(db.scale, 1.05, "wheel up"); eq(mm.holder:GetScale(), 1.05, "applied")
+	ov.__scripts.OnMouseWheel(ov, -1); ov.__scripts.OnMouseWheel(ov, -1)
+	eq(db.scale, 0.95, "wheel down")
+	-- right-click locks
+	ov.__scripts.OnClick(ov, "RightButton")
+	check(not mm.unlocked and not ov:IsShown(), "right-click locked it")
+	slash("minimap unlock")
+	check(mm.unlocked, "chat unlock")
+	ov.lock.__scripts.OnClick(ov.lock, "LeftButton")
+	check(not mm.unlocked, "Lock button")
+	-- reset
+	slash("minimap reset")
+	eq(db.scale, 1, "reset size")
+	eq(db.point[1], 1920 - 70 - 16, "reset to the top-right corner")
+	eq(db.point[2], 1080 - 70 - 34)
+end)
+
+step("minimap: no moving in combat, says why; combat locks it", function()
+	local mm = ns.modules.minimap
+	MOCK.log = {}
+	MOCK.combat = true
+	check(not mm:SetUnlocked(true), "refused in combat")
+	check(logHas("can't be moved in combat"), "says why")
+	check(not mm.unlocked)
+	MOCK.combat = false
+	mm:SetUnlocked(true, true)
+	local ov = mm.overlay
+	ov.__scripts.OnDragStart(ov, "LeftButton")
+	MOCK.Fire("PLAYER_REGEN_DISABLED")
+	check(not mm.holder.__moving, "drag dropped when combat starts")
+	check(not mm.unlocked and not ov:IsShown(), "locked for combat")
+	check(logHas("locked for combat"), "told")
+	-- a drag started in combat does nothing
+	mm.unlocked = true; ov:Show(); MOCK.combat = true; MOCK.log = {}
+	ov.__scripts.OnDragStart(ov, "LeftButton")
+	check(not mm.holder.__moving, "no StartMoving in combat")
+	check(logHas("can't be moved in combat"))
+	MOCK.combat = false
+	mm:SetUnlocked(false, true)
+end)
+
+step("minimap: general unlock mode unlocks the minimap too, and locks it again", function()
+	local mm = ns.modules.minimap
+	ns.Unlock:Start()
+	check(mm.unlocked, "unlocked with the rest")
+	ns.Unlock:Stop()
+	check(not mm.unlocked, "locked with the rest")
+	-- unlocked on its own first: general lock leaves it as it was
+	mm:SetUnlocked(true, true)
+	ns.Unlock:Start(); ns.Unlock:Stop()
+	check(mm.unlocked, "still unlocked")
+	mm:SetUnlocked(false, true)
+end)
+
 step("minimap: changes wait for combat to end", function()
 	local mm = ns.modules.minimap
 	MOCK.combat = true

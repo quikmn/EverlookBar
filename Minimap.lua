@@ -12,7 +12,7 @@ local M = ns:NewModule({
 	id = "minimap", title = "Clean minimap",
 	desc = "Move, scale and tidy the minimap; collect addon buttons into one drawer.",
 	defaults = {
-		locked = true,
+		snapEdges = true,      -- a dropped minimap snaps flush to a screen edge within 12 px
 		point = nil,           -- { x, y }: the minimap's centre on screen (UIParent units, from bottom-left)
 		scale = 1,
 		shape = "round",       -- round | square
@@ -25,7 +25,6 @@ local M = ns:NewModule({
 		buttons = "drawer",    -- drawer | hide | leave
 		drawerCorner = "BOTTOMLEFT",
 		drawerCols = 6,
-		drawerPos = nil,       -- { x, y } centre, once you drag the drawer somewhere
 		grab = {},             -- [frameName] = true: always collect
 		ignore = {},           -- [frameName] = true: never collect
 	},
@@ -90,6 +89,7 @@ end
 M.Resolve = resolve
 
 local function mdb() return ns:ModuleDB("minimap") end
+local function screenSize() return ns.Num(UIParent:GetWidth()) or 1920, ns.Num(UIParent:GetHeight()) or 1080 end
 function M:Mode(key)
 	local m = mdb().elements[key]
 	if m then return m end
@@ -356,8 +356,10 @@ function M:ApplyFrame()
 	end
 	local w, h = Minimap:GetSize()
 	w, h = ns.Num(w) or 140, ns.Num(h) or 140
-	local x, y = self:Center()
 	local scale = M.ClampScale(db.scale)
+	local cx, cy = self:Center()
+	local W, H = screenSize()
+	local x, y = M.SnapCenter(cx, cy, w * scale, h * scale, W, H, 0)
 	holder:SetScale(scale)
 	holder:SetSize(w, h)
 	holder:ClearAllPoints()
@@ -409,6 +411,194 @@ function M.ClampScale(v) return math.max(0.5, math.min(2.5, tonumber(v) or 1)) e
 function M:SetCenter(x, y)
 	mdb().point = { math.floor(x + 0.5), math.floor(y + 0.5) }
 	ns.AfterCombat("minimap-frame", function() M:ApplyFrame() end)
+end
+
+-- The minimap's size on screen, in UIParent units.
+function M:ScreenSize()
+	local w, h = Minimap:GetSize()
+	local sc = M.ClampScale(mdb().scale)
+	return (ns.Num(w) or 140) * sc, (ns.Num(h) or 140) * sc
+end
+
+-- Keep a centre on screen and pull it flush to an edge (or the screen's middle line) when within `dist`.
+function M.SnapCenter(x, y, w, h, W, H, dist)
+	local hw, hh = w / 2, h / 2
+	dist = dist or 0
+	if x - hw < dist then x = hw elseif W - (x + hw) < dist then x = W - hw end
+	if y - hh < dist then y = hh elseif H - (y + hh) < dist then y = H - hh end
+	if dist > 0 and math.abs(x - W / 2) < dist then x = W / 2 end
+	if w > W then x = W / 2 end
+	if h > H then y = H / 2 end
+	return x, y
+end
+
+-- Where a reset puts it: the top-right corner, clear of a top bar.
+function M:DefaultCenter()
+	local W, H = screenSize()
+	local w, h = self:ScreenSize()
+	return W - w / 2 - 16, H - h / 2 - 34
+end
+
+function M:ResetPosition()
+	if InCombatLockdown() then self:SayCombat() return false end
+	if self.stepAside then ns:Print(self.stepAside .. " manages the minimap, so reset it there.") return false end
+	local db = mdb()
+	db.scale = 1
+	local x, y = self:DefaultCenter()
+	db.point = { math.floor(x + 0.5), math.floor(y + 0.5) }
+	self:ApplyFrame()
+	ns:Print("minimap back in the top-right corner at 100%.")
+	if ns.Options then ns.Options:Refresh() end
+	return true
+end
+
+------------------------------------------------------------------------
+-- Moving: unlock it, then drag the minimap itself with the left mouse button. A mover of ours covers the map while
+-- unlocked (outline, handle, lock button); locked, it is hidden and every click goes to the map as normal.
+------------------------------------------------------------------------
+M.unlocked = false
+local overlay
+
+function M:SayCombat()
+	ns:Print("the minimap can't be moved in combat (the game locks its frames). Try again when combat ends.")
+end
+
+local function holderCenter()
+	local x, y = holder:GetCenter()
+	x, y = ns.Num(x), ns.Num(y)
+	if not x or not y then return nil end
+	local s = (ns.Num(holder:GetEffectiveScale()) or 1) / (ns.Num(UIParent:GetEffectiveScale()) or 1)
+	return x * s, y * s
+end
+
+-- A drag ended (or the scale changed): store the centre, snapped to the screen edges, and re-anchor.
+function M:DropHolder()
+	local x, y = holderCenter()
+	if not x then return end
+	local W, H = screenSize()
+	local w, h = self:ScreenSize()
+	x, y = M.SnapCenter(x, y, w, h, W, H, mdb().snapEdges ~= false and 12 or 0)
+	self:SetCenter(x, y)
+end
+
+local function overlayHint()
+	if not overlay then return end
+	local pct = math.floor(M.ClampScale(mdb().scale) * 100 + 0.5)
+	overlay.hint:SetText("Wheel: size " .. pct .. "%\nRight-click: lock")
+end
+
+-- Scale by mouse wheel steps (5% each), kept centred.
+function M:Nudge(delta)
+	if InCombatLockdown() then self:SayCombat() return end
+	local db = mdb()
+	local x, y = holderCenter()
+	db.scale = M.ClampScale(math.floor((M.ClampScale(db.scale) + (delta > 0 and 0.05 or -0.05)) * 100 + 0.5) / 100)
+	if x then db.point = { math.floor(x + 0.5), math.floor(y + 0.5) } end
+	self:ApplyFrame()
+	overlayHint()
+	if ns.Options then ns.Options:Refresh() end
+end
+
+local function makeOverlay()
+	if overlay then return end
+	local T = ns.Theme
+	overlay = CreateFrame("Button", ns.PREFIX .. "MinimapMover", holder)
+	overlay:SetAllPoints(Minimap)
+	overlay:SetFrameStrata("HIGH")
+	overlay:EnableMouse(true)
+	overlay:EnableMouseWheel(true)
+	overlay:RegisterForDrag("LeftButton")
+	overlay:RegisterForClicks("RightButtonUp")
+	local fill = overlay:CreateTexture(nil, "BACKGROUND")
+	fill:SetAllPoints(); fill:SetTexture(U.WHITE); fill:SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.16)
+	overlay.border = U.Border(overlay, 2, T.accent[1], T.accent[2], T.accent[3], 1, "OVERLAY")
+	-- the handle: a tab above the map with the title and a lock button
+	local handle = CreateFrame("Frame", nil, overlay)
+	handle:SetHeight(24)
+	handle:SetPoint("BOTTOMLEFT", overlay, "TOPLEFT", 0, 4)
+	handle:SetPoint("BOTTOMRIGHT", overlay, "TOPRIGHT", 0, 4)
+	handle:EnableMouse(true)
+	handle:RegisterForDrag("LeftButton")
+	U.Solid(handle, "BACKGROUND", T.bg[1], T.bg[2], T.bg[3], 0.95):SetAllPoints()
+	local top = U.Solid(handle, "ARTWORK", T.accent[1], T.accent[2], T.accent[3], 1)
+	top:SetHeight(2); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
+	U.Border(handle, 1, T.border[1], T.border[2], T.border[3], 1)
+	handle.title = handle:CreateFontString(nil, "OVERLAY")
+	U.SetFont(handle.title, 11)
+	handle.title:SetPoint("LEFT", 8, -1)
+	handle.title:SetTextColor(1, 1, 1)
+	handle.title:SetText("Minimap: drag to move")
+	local lock = ns.UI.Button(handle, "Lock", function() M:SetUnlocked(false) end, 48)
+	lock:SetHeight(18)
+	lock:SetPoint("RIGHT", -3, -1)
+	overlay.lock, overlay.handle = lock, handle
+	overlay.hint = overlay:CreateFontString(nil, "OVERLAY")
+	U.SetFont(overlay.hint, 10, "OUTLINE")
+	overlay.hint:SetPoint("BOTTOM", overlay, "BOTTOM", 0, 8)
+	overlay.hint:SetTextColor(1, 1, 1)
+	local function start()
+		if InCombatLockdown() then M:SayCombat() return end
+		GameTooltip:Hide()
+		overlay.moving = true
+		holder:StartMoving()
+	end
+	local function stop()
+		if not overlay.moving then return end
+		overlay.moving = false
+		holder:StopMovingOrSizing()
+		M:DropHolder()
+	end
+	overlay:SetScript("OnDragStart", start)
+	overlay:SetScript("OnDragStop", stop)
+	handle:SetScript("OnDragStart", start)
+	handle:SetScript("OnDragStop", stop)
+	overlay:SetScript("OnClick", function(_, button) if button == "RightButton" then M:SetUnlocked(false) end end)
+	overlay:SetScript("OnMouseWheel", function(_, delta) M:Nudge(delta) end)
+	overlay:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+		GameTooltip:AddLine("Minimap unlocked", 1, 1, 1)
+		GameTooltip:AddLine("Drag with the left mouse button to move it. Mouse wheel: size. Right-click or Lock: lock it.", 0.7, 0.7, 0.7, true)
+		GameTooltip:Show()
+	end)
+	overlay:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	overlay:Hide()
+	M.overlay = overlay
+end
+
+-- Show the mover while unlocked (called from ApplyFrame too).
+function M:ApplyUnlock()
+	if not self.unlocked or not holder then
+		if overlay then overlay:Hide() end
+		return
+	end
+	makeOverlay()
+	overlayHint()
+	overlay:Show()
+end
+
+-- on: true to unlock. quiet: no chat line. Returns whether it is now as asked.
+function M:SetUnlocked(on, quiet)
+	on = on and true or false
+	if on then
+		if not self.running then ns:Print("the clean minimap is off; switch it on first.") return false end
+		if self.stepAside then ns:Print(self.stepAside .. " manages the minimap, so move it there.") return false end
+		if InCombatLockdown() then self:SayCombat() return false end
+		if not holder then self:ApplyFrame() end
+	end
+	if overlay and overlay.moving and not on then
+		overlay.moving = false
+		holder:StopMovingOrSizing()
+		self:DropHolder()
+	end
+	local changed = self.unlocked ~= on
+	self.unlocked = on
+	self:ApplyUnlock()
+	if changed and not quiet then
+		ns:Print(on and "minimap unlocked: drag it with the left mouse button, mouse wheel to resize, right-click to lock."
+			or "minimap locked.")
+	end
+	if ns.Options then ns.Options:Refresh() end
+	return true
 end
 
 ------------------------------------------------------------------------
@@ -650,6 +840,13 @@ function M:Enable()
 		M:ApplyAll()
 	end
 	if IsLoggedIn and IsLoggedIn() then start() else ns.On("PLAYER_LOGIN", self, start) end
+	-- combat starts: drop what is being dragged where it is and lock
+	ns.On("PLAYER_REGEN_DISABLED", self, function()
+		if M.unlocked then
+			M:SetUnlocked(false, true)
+			ns:Print("minimap locked for combat. Unlock it again after combat.")
+		end
+	end)
 	-- buttons made late (addons that wait for login or load on demand)
 	ns.On("PLAYER_ENTERING_WORLD", self, function()
 		C_Timer.After(3, function() if M.running then M:ApplyAll() end end)
@@ -665,6 +862,7 @@ function M:Enable()
 end
 
 function M:Disable()
+	self:SetUnlocked(false, true)
 	for obj in pairs(taken) do restore(obj) end
 	self:ReleaseButtons()
 	if drawerToggle then drawerToggle:Hide() end

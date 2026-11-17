@@ -106,7 +106,9 @@ function impl:SetAlpha(a) self.__alpha = a end
 function impl:GetAlpha() return self.__alpha end
 function impl:GetFrameLevel() return self.__level end
 function impl:SetFrameLevel(l) if not self.__fixedLevel then self.__level = l end end
-function impl:GetEffectiveScale() return 1 end
+function impl:GetEffectiveScale() return (self.__scale or 1) * (self.__parent and self.__parent.GetEffectiveScale and self.__parent:GetEffectiveScale() or 1) end
+function impl:StartMoving() self.__moving = true end
+function impl:StopMovingOrSizing() self.__moving = false end
 function impl:GetObjectType() return self.__kind end
 function impl:IsObjectType(t) return self.__kind == t end
 function impl:GetChildren() return unpack(self.__children) end

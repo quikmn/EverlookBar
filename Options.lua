@@ -164,7 +164,14 @@ local function mmSetting(field, def)
 	def.disabled = def.disabled or function() return not mm.running or mm.stepAside ~= nil end
 	return app:Setting(def)
 end
+app:Setting({ key = "minimap.unlocked", type = "bool", label = "Unlock minimap (drag it with the left mouse button)",
+	chatLabel = "Unlock minimap",
+	get = function() return mm.unlocked end,
+	set = function(v) mm:SetUnlocked(v) end,
+	disabled = function() return not mm.running or mm.stepAside ~= nil end })
 mmSetting("scale", { type = "number", label = "Minimap size", min = 0.5, max = 2.5, step = 0.05, fmt = "%.2f" })
+mmSetting("snapEdges", { type = "bool", label = "Snap to screen edges when dropped" })
+mmSetting("borderSize", { type = "number", label = "Border thickness", min = 1, max = 8, step = 1 })
 mmSetting("shape", { type = "choice", label = "Shape", width = 200, choices = { { value = "round", text = "Round" }, { value = "square", text = "Square" } } })
 mmSetting("border", { type = "bool", label = "Thin border" })
 mmSetting("borderColor", { type = "color", label = "Border colour", hasAlpha = true })
@@ -275,11 +282,18 @@ app:Command("remove", "remove <plugin>", "take a plugin off its bar", function(r
 	ns.Host:Remove(name)
 	ns:Print(ns.Host:Title(name) .. " is off the bars.")
 end)
-app:Command("minimap", "minimap scan | grab <frame> | ignore <frame>", "minimap pieces found; collect or skip a button by frame name", function(rest)
+app:Command("minimap", "minimap unlock | lock | reset | scan | grab <frame> | ignore <frame>",
+	"move the minimap; put it back; what the minimap module found; collect or skip a button by frame name", function(rest)
 	local word, arg = U.Trim(rest):match("^(%S*)%s*(.*)$")
 	word = (word or ""):lower()
 	local db = ns:ModuleDB("minimap")
-	if word == "grab" and arg ~= "" then
+	if word == "unlock" or word == "move" then
+		mm:SetUnlocked(true)
+	elseif word == "lock" then
+		mm:SetUnlocked(false)
+	elseif word == "reset" then
+		mm:ResetPosition()
+	elseif word == "grab" and arg ~= "" then
 		db.grab[arg], db.ignore[arg] = true, nil
 		mm:ApplyAll(); ns:Print("will collect " .. U.Escape(arg) .. ".")
 	elseif word == "ignore" and arg ~= "" then
@@ -541,7 +555,15 @@ app:Section("modules", "Built-in", function(stack)
 end)
 
 app:Section("minimap", "Minimap", function(stack)
-	UI.Header(stack, "Clean minimap", "Move it in unlock mode. Nothing here changes in combat; it waits for combat to end.")
+	UI.Header(stack, "Clean minimap", "Unlock it, then drag the minimap itself. Nothing here changes in combat; it waits for combat to end.")
+	app:Widget(stack, "minimap.unlocked")
+	UI.Note(stack, function()
+		if mm.unlocked then
+			return "Unlocked: drag the minimap with the left mouse button, mouse wheel over it to resize. Right-click it or press Lock to lock. Clicks reach the map again once locked."
+		end
+		return "Locked: clicks go to the map. " .. ns.SLASH .. " minimap unlock also works; moving waits until you are out of combat."
+	end)
+	UI.ButtonRow(stack, { { label = "Reset position", width = 140, onClick = function() mm:ResetPosition() end } })
 	app:Widget(stack, "minimap.enabled")
 	UI.Note(stack, function()
 		if not mm.running then return "Off. Turning it off fully gives the minimap back after /reload." end
@@ -553,8 +575,9 @@ app:Section("minimap", "Minimap", function(stack)
 		if mm.buttonRival then s = s .. "|cffffd25a" .. mm.buttonRival .. " collects the minimap buttons, so the drawer is off.|r" end
 		return s
 	end)
-	app:Widget(stack, "minimap.scale"); app:Widget(stack, "minimap.shape"); app:Widget(stack, "minimap.border")
-	app:Widget(stack, "minimap.bordercolor"); app:Widget(stack, "minimap.wheelzoom")
+	app:Widget(stack, "minimap.scale"); app:Widget(stack, "minimap.snapedges"); app:Widget(stack, "minimap.shape")
+	app:Widget(stack, "minimap.border"); app:Widget(stack, "minimap.bordersize"); app:Widget(stack, "minimap.bordercolor")
+	app:Widget(stack, "minimap.wheelzoom")
 	UI.Header(stack, "Pieces around the minimap", "Hide them, leave them, or move them (drag them in unlock mode).")
 	for _, e in ipairs(mm.ELEMENTS) do app:Widget(stack, "minimap." .. e.key) end
 	UI.Header(stack, "Addon buttons", "LibDBIcon buttons and loose buttons on the minimap.")
@@ -587,7 +610,8 @@ app:Section("general", "General", function(stack)
 		.. s .. " bar  list bars;  " .. s .. " bar 2  edit bar 2;  " .. s .. " bar add left  new bar\n"
 		.. s .. " bar2.edge right  change one bar setting directly\n"
 		.. s .. " plugins, " .. s .. " place gold 1 right, " .. s .. " remove gold\n"
-		.. s .. " minimap scan  what the minimap module found\n"
+		.. s .. " minimap unlock / lock / reset  move the minimap, or put it back in the corner\n"
+		.. s .. " minimap scan  what the minimap module found, and any text near the minimap\n"
 		.. s .. " perf  memory and CPU\n" .. s .. " settings  every setting with its value\n" .. s .. " help  all of this in chat")
 end)
 

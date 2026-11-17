@@ -103,16 +103,13 @@ end
 function Unlock:SyncMovers()
 	if not self.active then return end
 	for _, m in pairs(self.movers) do m.used = false end
-	-- the minimap and its moved pieces
+	-- the minimap's moved pieces (the minimap itself has its own mover: unlocked with the rest, see Start)
 	local mm = ns.modules.minimap
 	if mm and mm.running and not mm.stepAside and mm.holder and Minimap then
 		local s = (ns.Num(Minimap:GetEffectiveScale()) or 1) / (ns.Num(UIParent:GetEffectiveScale()) or 1)
 		local l, b = ns.Num(Minimap:GetLeft()), ns.Num(Minimap:GetBottom())
 		local w, h = ns.Num(Minimap:GetWidth()), ns.Num(Minimap:GetHeight())
 		if l and b and w and h then
-			mover("minimap", "Minimap", l * s, b * s, w * s, h * s, function(x, y, mw, mh)
-				mm:SetCenter(x + mw / 2, y + mh / 2)
-			end)
 			local cx, cy = (l + w / 2) * s, (b + h / 2) * s
 			for _, e in ipairs(mm.ELEMENTS) do
 				if mm:Mode(e.key) == "move" then
@@ -250,6 +247,10 @@ function Unlock:Start()
 	panel:Show()
 	ns.Host:RefreshAll()
 	self:SyncMovers()
+	local mm = ns.modules.minimap
+	if mm and mm.running and not mm.stepAside and not mm.unlocked then
+		self.unlockedMinimap = mm:SetUnlocked(true, true)
+	end
 	if ns.Options then ns.Options:Refresh() end
 end
 
@@ -260,6 +261,10 @@ function Unlock:Stop()
 	if panel and panel:IsShown() then panel:Hide() end
 	if ghost then ghost:SetScript("OnUpdate", nil); ghost:Hide() end
 	for _, m in pairs(self.movers) do m:Hide() end
+	-- lock the minimap again only if unlock mode unlocked it
+	local mm = ns.modules.minimap
+	if self.unlockedMinimap and mm and mm.unlocked then mm:SetUnlocked(false, true) end
+	self.unlockedMinimap = nil
 	ns.Host:RefreshAll()
 	if ns.Options then ns.Options:Refresh() end
 end
