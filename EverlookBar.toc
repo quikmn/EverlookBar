@@ -1,0 +1,31 @@
+## Interface: 16001
+## Title: Everlook Bar
+## Notes: Info bars for LibDataBroker plugins (XP, performance, location, durability, mail, bags, gold, clock, calendar) and a clean minimap.
+## Author: quikmn
+## Version: 0.1.0
+## SavedVariables: EverlookBarDB
+## IconTexture: Interface\Icons\INV_Misc_Spyglass_03
+## X-License: GPL-3.0
+## X-Embeds: LibStub, CallbackHandler-1.0, LibDataBroker-1.1, EverlookUI
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\EverlookUI\EverlookUI.lua
+Core.lua
+Layout.lua
+Host.lua
+Bars.lua
+API.lua
+Modules\XP.lua
+Modules\Performance.lua
+Modules\Location.lua
+Modules\Durability.lua
+Modules\Mail.lua
+Modules\Bags.lua
+Modules\Gold.lua
+Modules\Clock.lua
+Modules\Calendar.lua
+Minimap.lua
+Unlock.lua
+Options.lua
