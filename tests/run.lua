@@ -747,6 +747,32 @@ step("minimap: general unlock mode unlocks the minimap too, and locks it again",
 	mm:SetUnlocked(false, true)
 end)
 
+step("minimap: a protected piece shown by Blizzard in combat is hidden after combat, never touched in it", function()
+	local mm = ns.modules.minimap
+	local track = MiniMapTracking
+	track.__protected = true
+	check(not track:IsShown(), "tracking hidden by default")
+	-- the client refuses Hide/SetPoint on a protected frame in combat (an error even inside pcall)
+	local hide = rawget(track, "Hide")
+	MOCK.combat = true
+	track.__touchedInCombat = false
+	local oldHide = track.Hide
+	rawset(track, "Hide", function(self, ...)
+		if MOCK.combat and self.__protected and not MOCK.blizzardCall then self.__touchedInCombat = true end
+		return oldHide(self, ...)
+	end)
+	MOCK.blizzardCall = true
+	track:Show() -- Blizzard shows it in combat
+	MOCK.blizzardCall = false
+	check(not track.__touchedInCombat, "not hidden by us in combat")
+	check(track:IsShown(), "stays shown until combat ends")
+	MOCK.combat = false
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	check(not track:IsShown(), "hidden after combat")
+	rawset(track, "Hide", hide)
+	track.__protected = nil
+end)
+
 step("minimap: changes wait for combat to end", function()
 	local mm = ns.modules.minimap
 	MOCK.combat = true

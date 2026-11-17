@@ -133,7 +133,16 @@ local function savePoints(obj)
 	return pts
 end
 
+-- A protected piece cannot be touched in combat (even inside pcall the client reports a blocked action): it waits.
+local function lockedNow(obj)
+	return InCombatLockdown() and obj.IsProtected and obj:IsProtected()
+end
+
 local function place(obj, key)
+	if lockedNow(obj) then
+		ns.AfterCombat("minimap-elements", function() M:ApplyElements() end)
+		return
+	end
 	local pos = mdb().elementPos[key] or { 0, 0 }
 	placing = true
 	pcall(function()
@@ -145,6 +154,10 @@ end
 
 -- Hide a piece we hold in "hide" mode (our own Hide calls do not count as Blizzard's wish).
 local function suppress(obj)
+	if lockedNow(obj) then
+		ns.AfterCombat("minimap-elements", function() M:ApplyElements() end)
+		return
+	end
 	placing = true
 	pcall(obj.Hide, obj)
 	placing = false
@@ -187,6 +200,7 @@ end
 local function restore(obj)
 	local t = taken[obj]
 	if not t then return end
+	if lockedNow(obj) then return end
 	taken[obj] = nil
 	placing = true
 	pcall(function()
@@ -201,7 +215,7 @@ end
 
 local function take(obj, key, mode)
 	if not obj or obj == Minimap or obj == holder then return end
-	if obj.IsProtected and obj:IsProtected() and InCombatLockdown() then return end
+	if lockedNow(obj) then return end
 	local t = taken[obj]
 	if not t then
 		t = memo[obj] or {}
@@ -228,7 +242,7 @@ function M:Find(e)
 	local function add(o) if o and not seen[o] then seen[o] = true; found[#found + 1] = o end end
 	for _, p in ipairs(e.paths or {}) do add(resolve(p)) end
 	if e.match then
-		for _, parent in ipairs({ MinimapCluster, MinimapCluster and MinimapCluster.MinimapContainer or false, Minimap }) do
+		for _, parent in ipairs({ MinimapCluster or false, MinimapCluster and MinimapCluster.MinimapContainer or false, Minimap or false }) do
 			if type(parent) == "table" then
 				for k, v in pairs(parent) do
 					if type(k) == "string" and type(v) == "table" and type(v.GetObjectType) == "function" and v ~= Minimap then
