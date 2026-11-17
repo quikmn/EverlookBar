@@ -38,7 +38,10 @@ M.ELEMENTS = {
 	{ key = "daynight", label = "Day/night indicator", default = "hide",
 		paths = { "GameTimeFrame", "MinimapCluster.Diel", "Minimap.Diel", "MinimapCluster.DielFrame", "DielFrame", "MinimapDiel" }, match = { "Diel", "DayNight" } },
 	{ key = "clock", label = "Clock", default = "hide", paths = { "TimeManagerClockButton" } },
-	{ key = "coords", label = "Coordinates", default = "hide", paths = { "MinimapCluster.Coordinates", "MinimapCoordinates" }, match = { "Coord" } },
+	-- Blizzard's own player coordinates sit in MinimapCluster.MinimapContainer, centred under the minimap
+	{ key = "coords", label = "Coordinates", default = "hide",
+		paths = { "MinimapCluster.MinimapContainer.PlayerCoords", "MinimapCluster.PlayerCoords", "MinimapCluster.Coordinates", "MinimapCoordinates" },
+		match = { "Coord" } },
 	{ key = "calendar", label = "Calendar button", default = "hide", paths = { "MinimapCluster.Calendar", "MiniMapCalendar" }, match = { "Calendar" } },
 	{ key = "tracking", label = "Tracking", default = "hide",
 		paths = { "MiniMapTrackingFrame", "MiniMapTracking", "MiniMapTrackingButton", "MinimapCluster.Tracking", "MinimapCluster.TrackingFrame" } },
@@ -62,7 +65,8 @@ hider:Hide()
 M.hider = hider
 
 local holder, borderFrame, roundBorder, drawer, drawerToggle
-local taken = {}      -- [object] = { parent, points = { {...} }, key, mode }
+local taken = {}      -- [object] = { points = { {...} }, key, mode, want } while we hold it
+local memo = setmetatable({}, { __mode = "k" }) -- the same record again after a release (hooks are set once)
 local held = {}       -- addon buttons we hold: [button] = { parent, points, strata, level, drag }
 local heldList = {}   -- ordered
 local placing = false -- guard against our own SetPoint calls in hooks
@@ -110,29 +114,19 @@ function M:DetectRivals()
 end
 
 ------------------------------------------------------------------------
--- Holding a Blizzard piece: hide it (parented to a hidden frame) or move it; put it back on "show".
+-- Holding a Blizzard piece: hide it or move it; put it back on "show".
+--
+-- Blizzard's pieces are never re-parented and none of their methods is replaced. Their own code calls into their
+-- parent (the mail and crafting-order icons call IndicatorFrame:Layout() on UPDATE_PENDING_MAIL), so a piece moved
+-- under a plain frame of ours breaks Blizzard's event handler. Hiding is a plain Hide() plus a post-hook on Show and
+-- SetShown that hides it again; what Blizzard wanted (shown or not) is remembered so "show" can give it back.
+-- Moving keeps the parent and only re-anchors the piece to the minimap.
 ------------------------------------------------------------------------
 local function savePoints(obj)
 	local pts = {}
-	local n = obj.GetNumPoints and obj:GetNumPoints() or 0
+	local n = obj.GetNumPoints and ns.Num(obj:GetNumPoints()) or 0
 	for i = 1, n do pts[i] = { obj:GetPoint(i) } end
 	return pts
-end
-
-local function restore(obj)
-	local t = taken[obj]
-	if not t then return end
-	taken[obj] = nil
-	placing = true
-	pcall(function()
-		obj:SetParent(t.parent)
-		if #t.points > 0 then
-			obj:ClearAllPoints()
-			for _, p in ipairs(t.points) do obj:SetPoint(unpack(p)) end
-		end
-		if t.wasShown and obj.Show then obj:Show() end
-	end)
-	placing = false
 end
 
 local function place(obj, key)
@@ -145,30 +139,84 @@ local function place(obj, key)
 	placing = false
 end
 
+-- Hide a piece we hold in "hide" mode (our own Hide calls do not count as Blizzard's wish).
+local function suppress(obj)
+	placing = true
+	pcall(obj.Hide, obj)
+	placing = false
+end
+
+local function hookPiece(obj, t)
+	if t.hooked then return end
+	t.hooked = true
+	if obj.Show then
+		hooksecurefunc(obj, "Show", function(o)
+			local h = taken[o]
+			if not h then return end
+			h.want = true
+			if h.mode == "hide" and not placing then suppress(o) end
+		end)
+	end
+	if obj.Hide then
+		hooksecurefunc(obj, "Hide", function(o)
+			local h = taken[o]
+			if h and not placing then h.want = false end
+		end)
+	end
+	if obj.SetShown then
+		hooksecurefunc(obj, "SetShown", function(o, shown)
+			local h = taken[o]
+			if not h or placing then return end
+			h.want = shown and true or false
+			if shown and h.mode == "hide" then suppress(o) end
+		end)
+	end
+	if obj.SetPoint then
+		hooksecurefunc(obj, "SetPoint", function(o)
+			local h = taken[o]
+			if placing or not h or h.mode ~= "move" then return end
+			place(o, h.key)
+		end)
+	end
+end
+
+local function restore(obj)
+	local t = taken[obj]
+	if not t then return end
+	taken[obj] = nil
+	placing = true
+	pcall(function()
+		if t.moved and #t.points > 0 then
+			obj:ClearAllPoints()
+			for _, p in ipairs(t.points) do obj:SetPoint(unpack(p)) end
+		end
+		if t.want and obj.Show then obj:Show() end
+	end)
+	placing = false
+end
+
 local function take(obj, key, mode)
 	if not obj or obj == Minimap or obj == holder then return end
 	if obj.IsProtected and obj:IsProtected() and InCombatLockdown() then return end
 	local t = taken[obj]
 	if not t then
-		t = { parent = obj:GetParent(), points = savePoints(obj), wasShown = obj.IsShown and obj:IsShown() }
+		t = memo[obj] or {}
+		memo[obj] = t
+		t.points, t.moved = savePoints(obj), false
+		t.want = obj.IsShown and obj:IsShown() and true or false
 		taken[obj] = t
-		if obj.SetPoint and not t.hooked then
-			t.hooked = true
-			hooksecurefunc(obj, "SetPoint", function(o)
-				local h = taken[o]
-				if placing or not h or h.mode ~= "move" then return end
-				place(o, h.key)
-			end)
-		end
+		hookPiece(obj, t)
 	end
 	t.key, t.mode = key, mode
 	if mode == "hide" then
-		pcall(obj.SetParent, obj, hider)
+		suppress(obj)
 	else
-		pcall(obj.SetParent, obj, holder or UIParent)
+		t.moved = true
+		if t.want then placing = true; pcall(obj.Show, obj); placing = false end
 		place(obj, key)
 	end
 end
+M.Taken = function(obj) return taken[obj] end
 
 -- The frames found for one element (known paths, then name/key discovery among the minimap's children).
 function M:Find(e)
@@ -176,7 +224,7 @@ function M:Find(e)
 	local function add(o) if o and not seen[o] then seen[o] = true; found[#found + 1] = o end end
 	for _, p in ipairs(e.paths or {}) do add(resolve(p)) end
 	if e.match then
-		for _, parent in ipairs({ MinimapCluster, Minimap }) do
+		for _, parent in ipairs({ MinimapCluster, MinimapCluster and MinimapCluster.MinimapContainer or false, Minimap }) do
 			if type(parent) == "table" then
 				for k, v in pairs(parent) do
 					if type(k) == "string" and type(v) == "table" and type(v.GetObjectType) == "function" and v ~= Minimap then

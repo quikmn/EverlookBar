@@ -402,9 +402,14 @@ step("minimap: decorations hidden, buttons collected, pins left alone", function
 	local mm = ns.modules.minimap
 	check(mm.running, "minimap module running")
 	check(not mm.stepAside, "no rival")
-	eq(MinimapZoneTextButton:GetParent(), mm.hider, "zone text hidden")
-	eq(GameTimeFrame:GetParent(), mm.hider, "day/night hidden")
-	eq(MinimapCluster.Diel:GetParent(), mm.hider, "Diel ring found by key and hidden")
+	check(not MinimapZoneTextButton:IsShown(), "zone text hidden")
+	check(not GameTimeFrame:IsShown(), "day/night hidden")
+	check(not MinimapCluster.Diel:IsShown(), "Diel ring found by key and hidden")
+	check(not MinimapCluster.MinimapContainer.PlayerCoords:IsShown(), "Blizzard's coordinates under the minimap hidden")
+	-- Blizzard's pieces keep their parents: their own code calls into the parent
+	eq(MinimapZoneTextButton:GetParent(), MinimapCluster, "zone text keeps its parent")
+	eq(MinimapCluster.IndicatorFrame.MailFrame:GetParent(), MinimapCluster.IndicatorFrame, "mail icon keeps its parent")
+	eq(MinimapCluster.MinimapContainer.PlayerCoords:GetParent(), MinimapCluster.MinimapContainer, "coords keep their parent")
 	eq(Minimap:GetParent(), mm.holder, "minimap in our holder")
 	local btn = CreateFrame("Button", "SomeAddonMinimapButton", Minimap); btn:SetSize(31, 31)
 	local pin = CreateFrame("Button", "QuestieFrame12", Minimap); pin:SetSize(16, 16)
@@ -416,6 +421,47 @@ step("minimap: decorations hidden, buttons collected, pins left alone", function
 	eq(blizz:GetParent(), Minimap, "Blizzard button left alone")
 	slash("minimap ignore SomeAddonMinimapButton")
 	eq(btn:GetParent(), Minimap, "released on ignore")
+end)
+
+step("minimap: Blizzard's mail event after we hid the mail icon (UPDATE_PENDING_MAIL regression)", function()
+	local mm = ns.modules.minimap
+	local mail = MinimapCluster.IndicatorFrame.MailFrame
+	eq(mm:Mode("mail"), "hide", "mail icon hidden by default")
+	MOCK.mail = true
+	MOCK.Fire("UPDATE_PENDING_MAIL") -- runs Blizzard's handler: SetShown + GetParent():Layout()
+	MOCK.Fire("CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS")
+	check((MinimapCluster.IndicatorFrame.__layouts or 0) >= 2, "Blizzard's Layout() ran on the real parent")
+	check(not mail:IsShown(), "still hidden after Blizzard showed it")
+	MOCK.BlizzardShowsAgain()
+	check(not MinimapZoneTextButton:IsShown() and not MinimapCluster.MinimapContainer.PlayerCoords:IsShown(), "Show() from Blizzard is undone")
+	check(not mail:IsShown(), "mail too")
+	-- "show" gives it back the way Blizzard wants it: mail waiting, so shown
+	ns:ModuleDB("minimap").elements.mail = "show"
+	mm:ApplyElements()
+	check(mail:IsShown(), "mail icon back (there is mail)")
+	ns:ModuleDB("minimap").elements.mail = nil
+	mm:ApplyElements()
+	check(not mail:IsShown(), "hidden again")
+	MOCK.mail = false
+	MOCK.Fire("UPDATE_PENDING_MAIL")
+	ns:ModuleDB("minimap").elements.mail = "show"
+	mm:ApplyElements()
+	check(not mail:IsShown(), "no mail: Blizzard's wish (hidden) kept on show")
+	ns:ModuleDB("minimap").elements.mail = "move"
+	mm:ApplyElements()
+	eq(mail:GetParent(), MinimapCluster.IndicatorFrame, "moving keeps the parent")
+	MinimapCluster.IndicatorFrame.MailFrame:SetPoint("LEFT", MinimapCluster.IndicatorFrame, "LEFT", 0, 0) -- Blizzard's Layout()
+	local _, rel = mail:GetPoint(1)
+	eq(rel, Minimap, "re-anchored to the minimap after Blizzard's layout")
+	ns:ModuleDB("minimap").elements.mail = nil
+	mm:ApplyElements()
+	-- no piece of Blizzard's ever sits under a frame of ours
+	for _, w in ipairs(MOCK.widgets) do
+		local p = w.__parent
+		if w.__name and not w.__name:find("^EverlookBar") and not w.__name:find("Minimap$") and p == mm.hider then
+			error(w.__name .. " re-parented to our hidden frame")
+		end
+	end
 end)
 
 step("minimap: changes wait for combat to end", function()

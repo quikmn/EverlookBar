@@ -174,6 +174,40 @@ MinimapZoneTextButton = newWidget("Button", "MinimapZoneTextButton", MinimapClus
 GameTimeFrame = newWidget("Button", "GameTimeFrame", MinimapCluster)
 MiniMapTracking = newWidget("Frame", "MiniMapTracking", Minimap)
 MinimapCluster.Diel = newWidget("Frame", nil, MinimapCluster)
+MinimapCluster.MinimapContainer = newWidget("Frame", nil, MinimapCluster)
+-- Blizzard's player coordinates: a frame with a FontString, centred under the minimap
+MinimapCluster.MinimapContainer.PlayerCoords = newWidget("Frame", nil, MinimapCluster.MinimapContainer)
+MinimapCluster.MinimapContainer.PlayerCoords.CoordText = MinimapCluster.MinimapContainer.PlayerCoords:CreateFontString()
+MinimapCluster.MinimapContainer.PlayerCoords.CoordText:SetText("49.5, 55.7")
+MinimapCluster.MinimapContainer.PlayerCoords:SetPoint("TOP", Minimap, "BOTTOM", 0, -2)
+-- The indicator frame is a layout frame: its children call their parent's Layout() from their own event handler
+-- (Blizzard_Minimap/Mainline/Minimap.lua: MiniMapIndicatorFrameMixin, UPDATE_PENDING_MAIL). A child moved under a
+-- plain frame makes that call fail ("attempt to call a nil value").
+MinimapCluster.IndicatorFrame = newWidget("Frame", nil, MinimapCluster)
+MinimapCluster.IndicatorFrame.Layout = function(self) self.__layouts = (self.__layouts or 0) + 1 end
+do
+	local mail = newWidget("Frame", "MiniMapMailFrame", MinimapCluster.IndicatorFrame)
+	MinimapCluster.IndicatorFrame.MailFrame = mail
+	mail.layoutIndex = 1
+	mail.MailIcon = newWidget("Texture", "MiniMapMailIcon", mail)
+	mail.__events.UPDATE_PENDING_MAIL = true
+	mail.__scripts.OnEvent = function(self, event)
+		if event == "UPDATE_PENDING_MAIL" then
+			self:SetShown(HasNewMail())
+			self:GetParent():Layout()
+		end
+	end
+	local craft = newWidget("Frame", nil, MinimapCluster.IndicatorFrame)
+	MinimapCluster.IndicatorFrame.CraftingOrderFrame = craft
+	craft.__events.CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS = true
+	craft.__scripts.OnEvent = function(self) self:Hide(); self:GetParent():Layout() end
+end
+-- Blizzard's own code showing its pieces again (zoom buttons on mouse-over, the clock after a CVar change...)
+function MOCK.BlizzardShowsAgain()
+	for _, o in ipairs({ MinimapZoneTextButton, GameTimeFrame, MinimapCluster.MinimapContainer.PlayerCoords, MinimapCluster.IndicatorFrame.MailFrame }) do
+		o:Show()
+	end
+end
 
 -- Globals
 wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
