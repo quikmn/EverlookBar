@@ -35,7 +35,7 @@ chat.
 
 ## Using it
 
-- `/ebar` opens the settings window. Everything in it also works from chat: `/ebar help`, `/ebar settings`.
+- `/ebar` opens the settings window. Everything in it also works from chat (see Commands below).
 - On the Plugins page of `/ebar`, drag a plugin's row to reorder it, move it to another group or bar, or drop it in
   "Not on a bar" to take it off; drag from there onto a bar to add it. Right-click or Escape cancels a drag.
 - `/ebar unlock` (or the Unlock button): drag bars to any edge or anywhere, the minimap where you like, and plugins
@@ -43,6 +43,19 @@ chat.
 - `/ebar minimap unlock`, `lock`, `reset`: move the minimap on its own, or put it back in the top-right corner.
   `/ebar minimap scan` lists what the minimap module found and any other text shown around the minimap.
 - `/ebar perf` shows what Everlook Bar itself costs.
+
+## Commands
+
+`/ebar` (also `/everlookbar`) follows the same pattern as every EverlookDB addon:
+
+- `/ebar` opens the settings window; it's also under Settings > AddOns.
+- `/ebar bar.edge left` (or `/ebar set bar.edge left`): change a setting; `/ebar bar2.edge left` changes bar 2. `/ebar get` lists every setting, `/ebar get bar.edge` shows one.
+- `/ebar unlock`, `/ebar lock` (or `move`, which flips it): drag bars, the minimap and plugins.
+- `/ebar bar`, `bar 2`, `bar add left`, `bar delete 2`; `/ebar plugins`, `place gold 1 right`, `remove gold`.
+- `/ebar minimap unlock`, `lock`, `reset`, `scan`, `grab <frame>`, `ignore <frame>`.
+- `/ebar reset bars`, `/ebar reset all`, `/ebar minimap reset` ask first (type it again within 10 seconds); `/ebar reset all confirm` still works.
+- `/ebar search <words>` opens the window with its search box filled; `/ebar status` (bars, plugins, memory), `/ebar version`, `/ebar perf`.
+- `/ebar help` (or `?`) lists every command; a mistyped one suggests the nearest.
 
 ## Built to stay out of the way
 

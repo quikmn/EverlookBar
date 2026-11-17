@@ -22,7 +22,7 @@ local function logHas(s)
 end
 
 -- Taint guard: our own files may only write these globals (Blizzard globals must never be written).
-local ALLOWED = { EverlookBar = true, EverlookBarDB = true, SLASH_EVERLOOKBAR1 = true, GetMinimapShape = true }
+local ALLOWED = { EverlookBar = true, EverlookBarDB = true, SLASH_EVERLOOKBAR1 = true, SLASH_EVERLOOKBAR2 = true, GetMinimapShape = true }
 local globalWrites = {}
 local addonEnv = setmetatable({}, {
 	__index = _G,
@@ -713,7 +713,9 @@ step("minimap: unlock, left-drag the map itself, lock (general unlock mode off)"
 	check(mm.unlocked, "chat unlock")
 	ov.lock.__scripts.OnClick(ov.lock, "LeftButton")
 	check(not mm.unlocked, "Lock button")
-	-- reset
+	-- reset: asks first, the second time does it
+	slash("minimap reset")
+	eq(db.scale, 0.95, "asked first, nothing reset yet")
 	slash("minimap reset")
 	eq(db.scale, 1, "reset size")
 	eq(db.point[1], 1920 - 70 - mm:BorderPad() - 16, "reset to the top-right corner")
@@ -875,6 +877,54 @@ step("chat: bars, bar settings, plugins", function()
 	check(logHas("memory:"), "perf printed")
 	slash("nonsense")
 	check(lastLog():find("unknown"), "unknown command message")
+end)
+
+step("chat: the shared command pattern (help, lock, resets ask first, status, suggestions)", function()
+	eq(SLASH_EVERLOOKBAR1, "/ebar"); eq(SLASH_EVERLOOKBAR2, "/everlookbar", "long-name alias")
+	MOCK.log = {}
+	slash("help")
+	for _, want in ipairs({ "/ebar unlock || lock", "/ebar reset bars || all || minimap", "/ebar get [setting]", "/ebar search <words>" }) do
+		check(logHas(want), "help lists " .. want)
+	end
+	-- lock / unlock / move flip unlock mode
+	slash("unlock"); check(ns.Unlock.active, "unlock")
+	slash("lock"); check(not ns.Unlock.active, "lock")
+	slash("move"); check(ns.Unlock.active, "move flips it on")
+	slash("move"); check(not ns.Unlock.active, "move flips it off")
+	-- reset bars asks first, then works on the second try
+	slash("bar add left")
+	eq(#ns.db.bars, 2, "two bars")
+	MOCK.log = {}
+	slash("reset bars")
+	eq(#ns.db.bars, 2, "asked first")
+	check(logHas("again within 10 s"), "says how to confirm")
+	slash("reset bars")
+	eq(#ns.db.bars, 1, "reset on the second try")
+	eq(ns.db.bars[1].name, "Top bar")
+	-- reset all asks first; the old "reset all confirm" still reloads at once
+	MOCK.reloaded = nil
+	slash("reset all")
+	check(not MOCK.reloaded, "reset all asks first")
+	local saved = _G[ns.SAVED]
+	slash("reset all confirm")
+	check(MOCK.reloaded, "reset all confirm reloads")
+	_G[ns.SAVED] = saved
+	MOCK.reloaded = nil
+	-- minimap reset asks first
+	local db = ns:ModuleDB("minimap")
+	db.scale = 1.2
+	slash("minimap reset")
+	eq(db.scale, 1.2, "minimap reset asks first")
+	slash("minimap reset")
+	eq(db.scale, 1, "then resets")
+	-- a typo suggests the nearest setting and keeps the value
+	MOCK.log = {}
+	slash("bar.edg left")
+	check(logHas("Did you mean /ebar bar.edge left?"), "suggestion: " .. lastLog())
+	-- status: bars, plugins, memory
+	MOCK.log = {}
+	slash("status")
+	check(logHas("1 bar(s), ") and logHas(" plugin(s); "), "status line: " .. lastLog())
 end)
 
 ------------------------------------------------------------------------

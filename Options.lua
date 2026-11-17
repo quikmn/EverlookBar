@@ -12,6 +12,7 @@ local app = UI:NewApp({
 	name = ns.NAME,
 	addon = ADDON,
 	slash = ns.SLASH,
+	aliases = { "/everlookbar" },
 	frameName = ns.PREFIX,
 	tagline = "Your info bars and a clean minimap.",
 	accent = ns.ACCENT,
@@ -249,8 +250,8 @@ local function findPlugin(text)
 	return exact or partial
 end
 
-app:Command("unlock", "unlock", "drag bars, the minimap and plugins (Escape locks)", function() ns.Unlock:Start() end, { "move" })
-app:Command("lock", "lock", "lock again", function() ns.Unlock:Stop() end)
+app:Movable({ what = "bars, the minimap and plugins (Escape locks)", get = function() return not ns.Unlock.active end,
+	set = function(locked) if locked then ns.Unlock:Stop() else ns.Unlock:Start() end end })
 app:Command("perf", "perf", "Everlook Bar's own memory and CPU use", function() O:PrintPerf() end)
 app:Command("bar", "bar <n> | bar add [edge] | bar delete <n>", "pick the bar that bar.* settings change; add or delete bars", function(rest)
 	local word, arg = U.Trim(rest):match("^(%S*)%s*(.*)$")
@@ -298,7 +299,7 @@ app:Command("minimap", "minimap unlock | lock | reset | scan | grab <frame> | ig
 	elseif word == "lock" then
 		mm:SetUnlocked(false)
 	elseif word == "reset" then
-		mm:ResetPosition()
+		app:HandleReset("minimap")
 	elseif word == "grab" and arg ~= "" then
 		db.grab[arg], db.ignore[arg] = true, nil
 		mm:ApplyAll(); ns:Print("will collect " .. U.Escape(arg) .. ".")
@@ -312,28 +313,28 @@ app:Command("minimap", "minimap unlock | lock | reset | scan | grab <frame> | ig
 		mm:Report()
 	end
 end)
-app:Command("reset", "reset bars | reset all", "bars back to one top bar, or everything back to defaults (asks first)", function(rest)
-	local what = U.Trim(rest):lower()
-	if what == "bars" then
-		wipe(ns.db.bars); wipe(ns.db.placement)
-		ns.db.bars[1] = U.CopyTable(ns.BAR_DEFAULTS); ns.db.bars[1].name = "Top bar"
-		for _, m in ipairs(ns.moduleOrder) do if m.running and m.ldbName then ns.Host:PlaceDefault(m.ldbName, m.place) end end
-		ns.editBar = 1
-		ns.Host:RefreshAll(); app:Refresh()
-		ns:Print("bars reset.")
-	elseif what == "all confirm" then
-		_G[ns.SAVED] = nil
-		ReloadUI()
-	elseif what == "all" then
-		ns:Print("this clears every " .. ns.NAME .. " setting and reloads. Type " .. ns.SLASH .. " reset all confirm")
-	else
-		ns:Print("usage: " .. ns.SLASH .. " reset bars, or " .. ns.SLASH .. " reset all")
-	end
+-- Resets ask first: the same command again within 10 s does it.
+app:Reset("bars", "the bars (one top bar, plugins back in place)", function()
+	wipe(ns.db.bars); wipe(ns.db.placement)
+	ns.db.bars[1] = U.CopyTable(ns.BAR_DEFAULTS); ns.db.bars[1].name = "Top bar"
+	for _, m in ipairs(ns.moduleOrder) do if m.running and m.ldbName then ns.Host:PlaceDefault(m.ldbName, m.place) end end
+	ns.editBar = 1
+	ns.Host:RefreshAll()
+end)
+app:Reset("all", "every " .. ns.NAME .. " setting (reloads the UI)", function() _G[ns.SAVED] = nil; ReloadUI() end)
+app:Reset("minimap", "the minimap's place and size", function() mm:ResetPosition() end)
+
+app:StatusLines(function()
+	local u, n = O:Usage(), 0
+	for _ in pairs(ns.Host.plugins) do n = n + 1 end
+	return { #ns.db.bars .. " bar(s), " .. n .. " plugin(s); " .. (u.memKB and string.format("%.0f KB", u.memKB) or "memory ?")
+		.. ". " .. ns.SLASH .. " perf for CPU." }
 end)
 
 -- "/ebar bar2.edge left" = pick bar 2, then set bar.edge.
 local baseHandle = app.HandleSlash
 function app:HandleSlash(msg)
+	if U.Trim(msg or ""):lower() == "reset all confirm" then _G[ns.SAVED] = nil; ReloadUI() return "reset" end -- old macros
 	local n, rest = U.Trim(msg or ""):match("^[Bb][Aa][Rr](%d+)%.(.+)$")
 	if n then
 		if not selectBar(n) then return "unknown" end
@@ -652,15 +653,16 @@ app:Section("general", "General", function(stack)
 		.. s .. " plugins, " .. s .. " place gold 1 right, " .. s .. " remove gold\n"
 		.. s .. " minimap unlock / lock / reset  move the minimap, or put it back in the corner\n"
 		.. s .. " minimap scan  what the minimap module found, and any text near the minimap\n"
-		.. s .. " perf  memory and CPU\n" .. s .. " settings  every setting with its value\n" .. s .. " help  all of this in chat")
+		.. s .. " perf  memory and CPU;  " .. s .. " status  bars, plugins, memory\n"
+		.. s .. " get  every setting (get bar.edge: one)\n" .. s .. " search <words>  find a setting\n"
+		.. s .. " reset bars | all | minimap  asks first (type it twice)\n" .. s .. " help  all of this in chat")
 end)
 
 ------------------------------------------------------------------------
 -- Hooks for the rest of the addon
 ------------------------------------------------------------------------
 function O:Init()
-	_G["SLASH_" .. ns.PREFIX:upper() .. "1"] = ns.SLASH
-	SlashCmdList[ns.PREFIX:upper()] = function(msg) app:HandleSlash(msg) end
+	app:RegisterSlash(ns.PREFIX:upper()) -- /ebar, also /everlookbar
 	for _, g in ipairs(ns.extSettings or {}) do
 		local known = false
 		for _, e in ipairs(extGroups) do if e == g then known = true end end
