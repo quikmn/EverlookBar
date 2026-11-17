@@ -1,0 +1,7 @@
+package-as: EverlookBar
+
+ignore:
+  - screenshots
+  - README.md
+  - tests
+  - .github
