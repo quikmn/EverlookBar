@@ -143,7 +143,7 @@ modSetting("clock", "realm", { type = "bool", label = "Clock shows realm time (e
 modSetting("clock", "h24", { type = "bool", label = "Clock: 24-hour" })
 modSetting("calendar", "style", { type = "choice", label = "Calendar text", width = 300, choices = {
 	{ value = "next", text = "Today's next event, else the date" }, { value = "date", text = "The date" },
-	{ value = "clock", text = "Clock and date" } } })
+	{ value = "clock", text = "Clock and date" }, { value = "full", text = "23:59, Wednesday, 26-nov-2026" } } })
 modSetting("calendar", "days", { type = "number", label = "Days ahead in the tooltip", min = 1, max = 14 })
 modSetting("calendar", "filter", { type = "choice", label = "Calendar tooltip shows", width = 240, choices = {
 	{ value = "all", text = "Everything" }, { value = "invites", text = "Invites only" }, { value = "holidays", text = "Holidays only" },

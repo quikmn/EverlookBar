@@ -10,7 +10,7 @@ local _, ns = ...
 local M = ns:NewModule({
 	id = "calendar", title = "Calendar", ldbName = ns.PREFIX .. "_Calendar",
 	desc = "Date, today's next event and pending invites; the coming week in the tooltip. Left-click opens the calendar.",
-	defaults = { style = "next", days = 7, filter = "all", lockouts = false, h24 = true },
+	defaults = { style = "full", days = 7, filter = "all", lockouts = false, h24 = true },
 	place = { group = "right", order = 8 },
 })
 
@@ -150,6 +150,7 @@ local function shorten(s, n)
 	return s:sub(1, n - 1) .. "."
 end
 
+local FULLDAYS = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
 local lastMinute = -1
 function M:Render()
 	-- nothing on screen changes within a minute unless the list was rebuilt: skip without making garbage
@@ -177,6 +178,12 @@ function M:Render()
 		local h, m = now.hour, now.minute
 		if not realm then h, m = ns.LocalClock() end
 		text = fmtTime(h, m) .. "  " .. date
+	elseif mdb.style == "full" then
+		-- "23:59, Wednesday, 26-nov-2026"
+		local realm = ns.modules.clock and ns:ModuleDB("clock") and ns:ModuleDB("clock").realm
+		local h, m = now.hour, now.minute
+		if not realm then h, m = ns.LocalClock() end
+		text = string.format("%02d:%02d, %s, %02d-%s-%d", h, m, FULLDAYS[now.wd] or "", now.d, (MONTHS[now.m] or ""):lower(), now.y)
 	else
 		text = date
 	end
@@ -347,7 +354,7 @@ function M:Enable()
 	end)
 	-- the date and "next event" move on with the clock: once a minute is plenty, every second with the clock style
 	self.task = self.task or ns.Every(self, 1, function() M:Render() end)
-	self.task:SetInterval(ns:ModuleDB("calendar").style == "clock" and 1 or 30)
+	self.task:SetInterval((ns:ModuleDB("calendar").style == "clock" or ns:ModuleDB("calendar").style == "full") and 1 or 30)
 	self.task:SetActive(true)
 	lastText = nil
 	M.dirty = true
@@ -356,7 +363,7 @@ end
 
 function M:Redraw()
 	if not self.running then return end
-	self.task:SetInterval(ns:ModuleDB("calendar").style == "clock" and 1 or 30)
+	self.task:SetInterval((ns:ModuleDB("calendar").style == "clock" or ns:ModuleDB("calendar").style == "full") and 1 or 30)
 	if loaded then self:Build() end
 	lastText = nil
 	M.dirty = true

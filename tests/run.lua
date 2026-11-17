@@ -373,7 +373,11 @@ step("Calendar: date maths, events, invites, answering", function()
 	MOCK.Fire("CALENDAR_UPDATE_EVENT_LIST")
 	eq(#C.events, 2, "secret event skipped, holiday once")
 	local text = ldb:GetDataObjectByName("EverlookBar_Calendar").text
+	check(text:find("^%d%d:%d%d, Monday, 30%-nov%-2026") and text:find("[1]", 1, true), "full clock text: " .. text)
+	ns:ModuleDB("calendar").style = "next"; C.dirty = true; C:Render()
+	text = ldb:GetDataObjectByName("EverlookBar_Calendar").text
 	check(text:find("Molten Core 20:00", 1, true) and text:find("[1]", 1, true), "text: " .. text)
+	ns:ModuleDB("calendar").style = "full"; C.dirty = true; C:Render()
 	C.Tooltip(GameTooltip)
 	local tip = table.concat(MOCK.tip, "\n")
 	check(tip:find("Invites waiting") and tip:find("until Dec 8", 1, true), "tooltip:\n" .. tip)
