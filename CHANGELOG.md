@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- "Build your own" page in `/ebar`: build your own plugin for Everlook Bar. Its button shows the address of the full
+  guide on EverlookDB (everlookdb.com/ebar/plugins) to copy, and a line to paste into an AI assistant so it writes the
+  plugin with you. The settings search finds it ("plugin", "module", "develop", "API", "guide").
 - Minimap: "Unlock minimap" is the first setting on its page (or `/ebar minimap unlock`): drag the minimap itself with
   the left mouse button, mouse wheel to resize, right-click or Lock to lock; snaps to screen edges, `/ebar minimap
   reset` puts it back. Fixed the round shape showing black, the drawer showing empty grey circles instead of the

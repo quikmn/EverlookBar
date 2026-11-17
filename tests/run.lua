@@ -832,6 +832,28 @@ step("bare /ebar opens the window; every page builds", function()
 	check(not ns.app:IsShown(), "toggled closed")
 end)
 
+step("Build your own: the search finds the guide button; it shows the guide and the AI line to copy", function()
+	slash("")
+	for _, q in ipairs({ "plugin", "module", "develop", "API", "guide" }) do
+		local r = ns.app:Search(q)
+		local found
+		for _, m in ipairs(r) do if m.entry.sectionId == "develop" then found = m.entry end end
+		check(found, "search '" .. q .. "' finds the guide")
+	end
+	local b = ns.app:Search("guide")[1].entry.frame.buttons[1]
+	ns.app:Search("")
+	b:GetScript("OnClick")(b, "LeftButton")
+	local w = ns.Guide.window
+	check(w and w:IsShown(), "link window shown")
+	eq(w.guide:GetText(), "https://everlookdb.com/ebar/plugins", "guide address")
+	check(w.ai:GetText():find("https://everlookdb.com/ebar/plugins.md", 1, true), "AI line names the brief")
+	w.guide:SetText("typed over")
+	w.guide:GetScript("OnTextChanged")(w.guide, true) -- the client fires this on typing
+	eq(w.guide:GetText(), "https://everlookdb.com/ebar/plugins", "typing can't change it")
+	w:Hide()
+	slash("")
+end)
+
 step("chat: bars, bar settings, plugins", function()
 	slash("bar add left")
 	eq(#ns.db.bars, 2, "added")

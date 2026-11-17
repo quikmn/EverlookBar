@@ -61,7 +61,7 @@ function API.Every(owner, interval, fn)
 	return ns.Every(o, interval, fn)
 end
 
--- 1: settings for your module, shown in the settings window (Plugins > your title) and in chat as
+-- 1: settings for your module, shown in the settings window (Built-in page, under your title) and in chat as
 -- "/ebar <owner>.<key> <value>". owner: a short id ("myaddon"). title: what the window calls it.
 -- settings: { { key, type = "bool"|"number"|"choice"|"color"|"string", label, desc, default,
 --               min, max, step (numbers), choices = { { value, text } } (choice), onChange = function(value) } }

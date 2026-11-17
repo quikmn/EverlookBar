@@ -56,7 +56,8 @@ chat.
 ## For plugin authors
 
 See [API.md](API.md): any LibDataBroker plugin works as is; `EverlookBar.API` adds custom widgets, settings and the
-shared ticker.
+shared ticker. The full guide, with a working plugin in 15 lines and a brief to paste into an AI assistant:
+https://everlookdb.com/ebar/plugins (also on the "Build your own" page of `/ebar`).
 
 ## Renaming
 
