@@ -125,6 +125,7 @@ end
 modSetting("xp", "width", { type = "number", label = "XP bar width", min = 40, max = 600 })
 modSetting("xp", "decimals", { type = "number", label = "XP percent decimals", min = 0, max = 2 })
 modSetting("xp", "showText", { type = "bool", label = "Show the XP percentage" })
+modSetting("xp", "textInBar", { type = "bool", label = "Percentage in the middle of the bar", keywords = { "centre", "center", "inside", "text" } })
 modSetting("perf", "fps", { type = "bool", label = "Show FPS" })
 modSetting("perf", "latency", { type = "choice", label = "Latency on the bar", width = 260, choices = {
 	{ value = "world", text = "World (combat)" }, { value = "home", text = "Home (realm)" }, { value = "both", text = "Both (home/world)" }, { value = "none", text = "None" } } })

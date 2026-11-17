@@ -284,8 +284,9 @@ end)
 ------------------------------------------------------------------------
 step("XP: percent text, bar widths, hidden at max level", function()
 	local xp = ldb:GetDataObjectByName("EverlookBar_XP")
-	eq(xp.text, "37.5%")
+	eq(xp.text, "", "percentage is on the bar, not beside it")
 	local w = ns.Host.plugins.EverlookBar_XP.button.widget
+	eq(w.label:GetText(), "37.5%", "percentage centred on the bar")
 	eq(w.fill:GetWidth(), 160 * 1500 / 4000, "fill width")
 	eq(w.rested:GetWidth(), 160 * 2300 / 4000, "rested overlay")
 	MOCK.xp.level = 60

@@ -6,11 +6,12 @@ local U = ns.Util
 local M = ns:NewModule({
 	id = "xp", title = "XP bar", ldbName = ns.PREFIX .. "_XP",
 	desc = "A thin experience bar with rested XP and the percentage. Hidden at max level.",
-	defaults = { width = 160, decimals = 1, showText = true },
+	defaults = { width = 160, decimals = 1, showText = true, textInBar = true },
 	place = { group = "center", order = 1 },
 })
 
 local obj
+M.pctText = ""
 local state = { cur = 0, max = 1, rested = 0, level = 1, valid = false }
 M.state = state
 
@@ -44,10 +45,12 @@ function M:Update()
 	local pct = state.cur / state.max * 100
 	if mdb.showText then
 		local d = tonumber(mdb.decimals) or 1
-		obj.text = string.format("%." .. d .. "f%%", pct)
+		M.pctText = string.format("%." .. d .. "f%%", pct)
 	else
-		obj.text = ""
+		M.pctText = ""
 	end
+	-- the percentage sits centred on the bar itself (default) or as text beside it
+	obj.text = mdb.textInBar and "" or M.pctText
 	-- the widget reads `state`; a changed percentage (text) redraws it, and so does rested XP
 	ns.API.Refresh(self.ldbName)
 end
@@ -86,9 +89,15 @@ local widget = {
 		f.fill:SetVertexColor(0.62, 0.36, 0.95, 0.95)
 		f.fill:SetPoint("TOPLEFT")
 		f.fill:SetPoint("BOTTOMLEFT")
+		f.label = f:CreateFontString(nil, "OVERLAY")
+		U.SetFont(f.label, 11, "OUTLINE")
+		f.label:SetPoint("CENTER", f, "CENTER", 0, 0)
+		f.label:SetTextColor(1, 1, 1, 1)
 	end,
 	update = function(f)
 		local w = tonumber(ns:ModuleDB("xp").width) or 160
+		local label = ns:ModuleDB("xp").textInBar and M.pctText or ""
+		if f.label and f.label:GetText() ~= label then f.label:SetText(label) end
 		if not state.valid then
 			f.fill:Hide(); f.rested:Hide()
 			return
