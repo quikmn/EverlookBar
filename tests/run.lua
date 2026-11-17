@@ -464,6 +464,33 @@ step("minimap: Blizzard's mail event after we hid the mail icon (UPDATE_PENDING_
 	end
 end)
 
+step("minimap: round and square masks, border behind the map", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	eq(db.shape, "round", "round by default")
+	eq(Minimap.__mask, "Interface\\AddOns\\EverlookBar\\Media\\MinimapRound", "our own round mask")
+	local f = io.open(ROOT .. "/Media/MinimapRound.tga", "rb")
+	check(f, "the round mask ships with the addon"); f:close()
+	eq(GetMinimapShape(), "ROUND")
+	local b = mm.borderFrame
+	eq(b:GetFrameStrata(), "BACKGROUND", "border sits behind the minimap")
+	check(b.tex.__masks and b.tex.__masks[1] == b.mask, "border cut to the shape")
+	eq(b.mask.__texture, mm.MASKS.round)
+	eq(b:GetWidth(), 140 + 2 * db.borderSize, "border a little larger than the map")
+	eq(Minimap:GetFrameStrata(), "LOW", "minimap keeps Blizzard's strata")
+	db.shape = "square"; mm:Redraw()
+	eq(Minimap.__mask, "Interface\\Buttons\\WHITE8X8", "square mask")
+	eq(b.mask.__texture, mm.MASKS.square)
+	eq(GetMinimapShape(), "SQUARE")
+	db.shape = "round"; db.borderSize = 5; mm:Redraw()
+	eq(Minimap.__mask, mm.MASKS.round, "back to round")
+	eq(b:GetWidth(), 150, "border thickness")
+	db.border = false; mm:Redraw()
+	check(not b:IsShown(), "border off")
+	db.border = true; db.borderSize = 2; mm:Redraw()
+	check(b:IsShown(), "border on")
+end)
+
 step("minimap: changes wait for combat to end", function()
 	local mm = ns.modules.minimap
 	MOCK.combat = true

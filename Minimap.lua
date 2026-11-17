@@ -17,6 +17,7 @@ local M = ns:NewModule({
 		scale = 1,
 		shape = "round",       -- round | square
 		border = true,
+		borderSize = 2,        -- px (1-8)
 		borderColor = { 0, 0, 0, 1 },
 		wheelZoom = true,
 		elements = {},         -- [key] = "show" | "hide" | "move"
@@ -64,7 +65,7 @@ local hider = CreateFrame("Frame")
 hider:Hide()
 M.hider = hider
 
-local holder, borderFrame, roundBorder, drawer, drawerToggle
+local holder, borderFrame, drawer, drawerToggle
 local taken = {}      -- [object] = { points = { {...} }, key, mode, want } while we hold it
 local memo = setmetatable({}, { __mode = "k" }) -- the same record again after a release (hooks are set once)
 local held = {}       -- addon buttons we hold: [button] = { parent, points, strata, level, drag }
@@ -275,27 +276,104 @@ function M:Center()
 	return (ns.Num(UIParent:GetWidth()) or 1920) - 120, (ns.Num(UIParent:GetHeight()) or 1080) - 120
 end
 
+-- Masks. The round one is our own texture (Media\MinimapRound.tga: white, alpha circle): a mask path that does not
+-- exist in this client leaves the minimap black, so we never rely on the game's own mask files for it.
+M.MASKS = {
+	round = "Interface\\AddOns\\" .. ns.ADDON .. "\\Media\\MinimapRound",
+	square = "Interface\\Buttons\\WHITE8X8",
+}
+
+local function applyShape(square)
+	local mask = square and M.MASKS.square or M.MASKS.round
+	pcall(Minimap.SetMaskTexture, Minimap, mask)
+	M.mask = mask
+	-- the indoor/hybrid map has its own canvas mask
+	local hy = HybridMinimap
+	if type(hy) == "table" and hy.MapCanvas and hy.CircleMask then
+		pcall(function()
+			hy.MapCanvas:SetUseMaskTexture(false)
+			hy.CircleMask:SetTexture(mask)
+			hy.MapCanvas:SetUseMaskTexture(true)
+		end)
+	end
+	-- the quest/archaeology blob rings are drawn for a round map; on a square one they leave a ring of "waffle" marks
+	local ring = square and 0 or 1
+	if square or M.blobRingsOff then
+		M.blobRingsOff = square
+		for _, f in ipairs({ "SetArchBlobRingScalar", "SetArchBlobRingAlpha", "SetQuestBlobRingScalar", "SetQuestBlobRingAlpha",
+			"SetTaskBlobRingScalar", "SetTaskBlobRingAlpha" }) do
+			if Minimap[f] then pcall(Minimap[f], Minimap, ring) end
+		end
+	end
+	-- addons ask this global for the shape (LibDBIcon and others); define it only if nobody else has
+	if GetMinimapShape == nil or M.ownsShapeFunc then
+		M.ownsShapeFunc = true
+		GetMinimapShape = function() return mdb().shape == "square" and "SQUARE" or "ROUND" end
+	end
+end
+M.ApplyShape = applyShape
+
+-- The border: a solid colour a little larger than the minimap, cut to the same shape, BEHIND the minimap (its own
+-- frame at BACKGROUND strata). The minimap covers the middle, so only a ring (or square frame) shows.
+local function applyBorder(square)
+	local db = mdb()
+	if not borderFrame then
+		borderFrame = CreateFrame("Frame", nil, holder)
+		borderFrame:SetFrameStrata("BACKGROUND")
+		borderFrame:SetFrameLevel(1)
+		borderFrame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
+		borderFrame.tex = borderFrame:CreateTexture(nil, "BACKGROUND")
+		borderFrame.tex:SetAllPoints()
+		borderFrame.tex:SetTexture(U.WHITE)
+		if borderFrame.CreateMaskTexture and borderFrame.tex.AddMaskTexture then
+			borderFrame.mask = borderFrame:CreateMaskTexture()
+			borderFrame.mask:SetAllPoints(borderFrame.tex)
+			borderFrame.tex:AddMaskTexture(borderFrame.mask)
+		end
+		M.borderFrame = borderFrame
+	end
+	local t = math.max(1, math.min(8, math.floor(tonumber(db.borderSize) or 2)))
+	local w, h = Minimap:GetSize()
+	w, h = ns.Num(w) or 140, ns.Num(h) or 140
+	borderFrame:SetSize(w + 2 * t, h + 2 * t)
+	local c = db.borderColor or { 0, 0, 0, 1 }
+	borderFrame.tex:SetVertexColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
+	if borderFrame.mask then borderFrame.mask:SetTexture(square and M.MASKS.square or M.MASKS.round) end
+	-- without mask support only the square border can be drawn
+	borderFrame:SetShown(db.border and (square or borderFrame.mask ~= nil))
+end
+
 function M:ApplyFrame()
 	if self.stepAside then return end
 	local db = mdb()
 	if not holder then
 		holder = CreateFrame("Frame", ns.PREFIX .. "MinimapHolder", UIParent)
 		holder:SetFrameStrata("LOW")
+		holder:SetFrameLevel(1)
+		holder:SetMovable(true)
+		holder:SetClampedToScreen(true)
 		M.holder = holder
 	end
 	local w, h = Minimap:GetSize()
 	w, h = ns.Num(w) or 140, ns.Num(h) or 140
 	local x, y = self:Center()
-	local scale = math.max(0.5, math.min(2.5, tonumber(db.scale) or 1))
+	local scale = M.ClampScale(db.scale)
 	holder:SetScale(scale)
 	holder:SetSize(w, h)
 	holder:ClearAllPoints()
 	holder:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
 	placing = true
-	Minimap:SetParent(holder)
+	if Minimap:GetParent() ~= holder then Minimap:SetParent(holder) end
+	-- a new parent resets strata and level; keep Blizzard's (LOW) and stay above the holder and our border
+	if Minimap:GetFrameStrata() ~= "LOW" then Minimap:SetFrameStrata("LOW") end
+	if (ns.Num(Minimap:GetFrameLevel()) or 0) < 2 then Minimap:SetFrameLevel(2) end
 	Minimap:ClearAllPoints()
 	Minimap:SetPoint("CENTER", holder, "CENTER", 0, 0)
 	placing = false
+	-- the minimap cluster stays in the corner (zone text and friends live there); it must not eat clicks there
+	if MinimapCluster and MinimapCluster.IsMouseEnabled and MinimapCluster:IsMouseEnabled() and not self.clusterMouseOff then
+		if pcall(MinimapCluster.EnableMouse, MinimapCluster, false) then self.clusterMouseOff = true end
+	end
 	if not self.minimapHooked then
 		self.minimapHooked = true
 		hooksecurefunc(Minimap, "SetPoint", function()
@@ -308,31 +386,9 @@ function M:ApplyFrame()
 			end)
 		end)
 	end
-	-- shape
 	local square = db.shape == "square"
-	pcall(Minimap.SetMaskTexture, Minimap, square and "Interface\\Buttons\\WHITE8X8" or "Textures\\MinimapMask")
-	-- addons ask this global for the shape (LibDBIcon and others); define it only if nobody else has
-	if GetMinimapShape == nil or M.ownsShapeFunc then
-		M.ownsShapeFunc = true
-		GetMinimapShape = function() return mdb().shape == "square" and "SQUARE" or "ROUND" end
-	end
-	-- border
-	local c = db.borderColor or { 0, 0, 0, 1 }
-	if not borderFrame then
-		borderFrame = CreateFrame("Frame", nil, holder)
-		borderFrame:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -1, 1)
-		borderFrame:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 1, -1)
-		borderFrame.edges = U.Border(borderFrame, 1, 0, 0, 0, 1, "OVERLAY")
-		roundBorder = holder:CreateTexture(nil, "BACKGROUND")
-		roundBorder:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
-		roundBorder:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -1.5, 1.5)
-		roundBorder:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 1.5, -1.5)
-	end
-	borderFrame:SetFrameLevel((ns.Num(Minimap:GetFrameLevel()) or 1) + 5)
-	borderFrame.edges:SetColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
-	borderFrame:SetShown(db.border and square)
-	roundBorder:SetVertexColor(c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1)
-	roundBorder:SetShown(db.border and not square)
+	applyShape(square)
+	applyBorder(square)
 	-- mouse wheel zoom (only when nobody set a wheel script)
 	if db.wheelZoom and not self.wheelSet and not Minimap:GetScript("OnMouseWheel") then
 		self.wheelSet = true
@@ -344,7 +400,10 @@ function M:ApplyFrame()
 			mm:SetZoom(z)
 		end)
 	end
+	if self.ApplyUnlock then self:ApplyUnlock() end
 end
+
+function M.ClampScale(v) return math.max(0.5, math.min(2.5, tonumber(v) or 1)) end
 
 -- Mover dropped: the new centre in UIParent units.
 function M:SetCenter(x, y)

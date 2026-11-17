@@ -105,9 +105,8 @@ function impl:GetStringHeight() return 12 end
 function impl:SetAlpha(a) self.__alpha = a end
 function impl:GetAlpha() return self.__alpha end
 function impl:GetFrameLevel() return self.__level end
-function impl:SetFrameLevel(l) self.__level = l end
+function impl:SetFrameLevel(l) if not self.__fixedLevel then self.__level = l end end
 function impl:GetEffectiveScale() return 1 end
-function impl:GetScale() return 1 end
 function impl:GetObjectType() return self.__kind end
 function impl:IsObjectType(t) return self.__kind == t end
 function impl:GetChildren() return unpack(self.__children) end
@@ -125,6 +124,21 @@ function impl:SetValue(v) self.__value = v end
 function impl:GetMinMaxValues() return 0, 1 end
 function impl:GetID() return 0 end
 function impl:SetMaskTexture(t) self.__mask = t end
+function impl:GetFrameStrata() return self.__strata or (self.__parent and self.__parent.GetFrameStrata and self.__parent:GetFrameStrata()) or "MEDIUM" end
+function impl:SetFrameStrata(s) if not self.__fixedStrata then self.__strata = s end end
+function impl:SetFixedFrameStrata(on) self.__fixedStrata = on end
+function impl:HasFixedFrameStrata() return self.__fixedStrata or false end
+function impl:SetFixedFrameLevel(on) self.__fixedLevel = on end
+function impl:HasFixedFrameLevel() return self.__fixedLevel or false end
+function impl:CreateMaskTexture() local m = newWidget("MaskTexture", nil, self); return m end
+function impl:AddMaskTexture(m) self.__masks = self.__masks or {}; table.insert(self.__masks, m) end
+function impl:SetTexture(t) self.__texture = t end
+function impl:GetTexture() return self.__texture end
+function impl:SetVertexColor(r, g, b, a) self.__color = { r, g, b, a } end
+function impl:SetScale(s) self.__scale = s end
+function impl:GetScale() return self.__scale or 1 end
+function impl:SetMovable(on) self.__movable = on end
+function impl:IsMovable() return self.__movable or false end
 
 Widget.__index = function(self, key)
 	local f = impl[key]
