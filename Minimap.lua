@@ -604,6 +604,7 @@ function M:DropHolder()
 	local w, h = self:ScreenSize()
 	x, y = M.SnapCenter(x, y, w, h, W, H, mdb().snapEdges ~= false and 12 or 0)
 	self:SetCenter(x, y)
+	if drawer and drawer:IsShown() then M.AnchorDrawer() end
 end
 
 local function overlayHint()
@@ -1114,6 +1115,10 @@ function M:Enable()
 	end
 	mdb().drawerPos = nil -- the drawer is no longer dragged anywhere: it opens beside its button
 	if IsLoggedIn and IsLoggedIn() then start() else ns.On("PLAYER_LOGIN", self, start) end
+	-- a new resolution or UI scale: keep the minimap on screen (the saved centre is clamped when applied)
+	for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED" }) do
+		ns.On(e, self, function() ns.AfterCombat("minimap-frame", function() if M.running then M:ApplyFrame() end end) end)
+	end
 	-- combat starts: drop what is being dragged where it is and lock
 	ns.On("PLAYER_REGEN_DISABLED", self, function()
 		if M.unlocked then

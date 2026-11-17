@@ -776,6 +776,23 @@ step("minimap: a protected piece shown by Blizzard in combat is hidden after com
 	track.__protected = nil
 end)
 
+step("minimap: a smaller screen keeps the minimap on it", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	db.point = { 1850, 1000 }
+	UIParent.__w, UIParent.__h = 1280, 720
+	MOCK.Fire("DISPLAY_SIZE_CHANGED")
+	local _, _, _, x, y = mm.holder:GetPoint(1)
+	eq(x, 1280 - 70, "pulled back on screen (x)")
+	eq(y, 720 - 70, "pulled back on screen (y)")
+	eq(db.point[1], 1850, "the saved spot is kept for the bigger screen")
+	UIParent.__w, UIParent.__h = 1920, 1080
+	MOCK.Fire("DISPLAY_SIZE_CHANGED")
+	_, _, _, x = mm.holder:GetPoint(1)
+	eq(x, 1850, "back where it was")
+	mm:ResetPosition()
+end)
+
 step("minimap: changes wait for combat to end", function()
 	local mm = ns.modules.minimap
 	MOCK.combat = true
