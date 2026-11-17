@@ -181,3 +181,53 @@ function L.Reorder(list, key, index)
 	table.insert(out, index, key)
 	return out
 end
+
+------------------------------------------------------------------------
+-- Settings window lists (the Plugins page): where a dragged row lands. Positions run downwards from a list's top.
+------------------------------------------------------------------------
+-- The insertion slot for `pos` among rows whose centres are `centres` (top-down): 1 = above the first row,
+-- #centres + 1 = under the last.
+function L.InsertSlot(centres, pos)
+	local slot = 1
+	for _, c in ipairs(centres) do
+		if c < pos then slot = slot + 1 end
+	end
+	return slot
+end
+
+-- Row centres of a list with rows `rowH` high and `gap` apart.
+function L.RowCentres(n, rowH, gap)
+	local t = {}
+	for i = 1, n do t[i] = (i - 1) * (rowH + gap) + rowH / 2 end
+	return t
+end
+
+-- A group's list shows its rows lane by lane: lanes[i] is the lane (bar row) of the i-th row shown.
+-- Dropping at `slot` (see InsertSlot; counted with the dragged row still shown at `skip`, nil when it comes from
+-- elsewhere) puts it in the lane of the row above the line (else the row below, else `fallback`) at `index` inside
+-- that lane, ready for Host:Place. Returns lane, index.
+function L.ListDrop(lanes, slot, skip, fallback)
+	local rest = {}
+	for i, lane in ipairs(lanes) do
+		if i ~= skip then rest[#rest + 1] = lane end
+	end
+	if skip and slot > skip then slot = slot - 1 end
+	slot = max(1, min(#rest + 1, slot))
+	local lane = rest[slot - 1] or rest[slot] or fallback or 1
+	local index = 1
+	for i = 1, slot - 1 do
+		if rest[i] == lane then index = index + 1 end
+	end
+	return lane, index
+end
+
+-- Which of `zones` ({ top, bottom }, positions downwards) is at `pos`: the one it is in, else the nearest.
+function L.NearestZone(zones, pos)
+	local best, dist
+	for i, z in ipairs(zones) do
+		local d = 0
+		if pos < z.top then d = z.top - pos elseif pos > z.bottom then d = pos - z.bottom end
+		if not dist or d < dist then best, dist = i, d end
+	end
+	return best
+end
