@@ -28,5 +28,6 @@ Modules\Clock.lua
 Modules\Calendar.lua
 Minimap.lua
 Unlock.lua
+PluginDrag.lua
 Options.lua
 Guide.lua

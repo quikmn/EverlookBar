@@ -456,40 +456,45 @@ local function lookPopup(name, button)
 	end, { width = 200 })
 end
 
-local function groupList(stack, group, title)
-	UI.Note(stack, title, ns.Theme.text)
-	return UI.List(stack, {
-		empty = "Empty.",
+local function pluginIcon(n)
+	local rec = ns.Host.plugins[n]
+	local i = rec and rec.obj.icon
+	if i ~= nil and not ns.IsSecret(i) and (type(i) == "string" or type(i) == "number") then return i end
+end
+
+-- One group of one bar: its heading and its rows (drag them, or use the buttons).
+local function groupList(stack, barIndex, group, title)
+	local function theBar() return ns.db.bars[barIndex] end
+	local function items()
+		local out = {}
+		local b = theBar()
+		if not b then return out end
+		for lane = 1, b.lanes or 1 do
+			for _, n in ipairs(ns.Host:GroupList(barIndex, lane, group)) do out[#out + 1] = n end
+		end
+		return out
+	end
+	local heading = UI.Note(stack, title, ns.Theme.text)
+	local list = UI.List(stack, {
+		empty = "Empty. Drag a plugin here.",
 		rowHeight = 28,
 		titleWidth = 200,
-		items = function()
-			local out = {}
-			local b = bar()
-			if not b then return out end
-			for lane = 1, b.lanes or 1 do
-				for _, n in ipairs(ns.Host:GroupList(ns.editBar, lane, group)) do out[#out + 1] = n end
-			end
-			return out
-		end,
+		items = items,
 		title = function(n) return ns.Host:Title(n) end,
 		detail = function(n)
 			local p = ns.db.placement[n]
 			local rec = ns.Host.plugins[n]
-			local s = (bar() and (bar().lanes or 1) > 1) and ("row " .. (p and p.lane or 1)) or ""
+			local s = (theBar() and (theBar().lanes or 1) > 1) and ("row " .. (p and p.lane or 1)) or ""
 			if rec and rec.errors > 0 then s = s .. " |cffff6060error|r" end
 			return s
 		end,
-		icon = function(n)
-			local rec = ns.Host.plugins[n]
-			local i = rec and rec.obj.icon
-			if i ~= nil and not ns.IsSecret(i) and (type(i) == "string" or type(i) == "number") then return i end
-		end,
+		icon = pluginIcon,
 		buttons = {
 			{ label = "<", width = 26, onClick = function(n) ns.Host:Nudge(n, -1) end },
 			{ label = ">", width = 26, onClick = function(n) ns.Host:Nudge(n, 1) end },
-			{ label = "Row", width = 44, shown = function() return bar() and (bar().lanes or 1) > 1 end, onClick = function(n)
+			{ label = "Row", width = 44, shown = function() return theBar() and (theBar().lanes or 1) > 1 end, onClick = function(n)
 				local p = ns.db.placement[n]
-				local lanes = bar().lanes or 1
+				local lanes = theBar().lanes or 1
 				ns.Host:Place(n, p.bar, (p.lane or 1) % lanes + 1, p.group)
 			end },
 			{ label = "Group", width = 54, onClick = function(n, btn)
@@ -500,36 +505,57 @@ local function groupList(stack, group, title)
 			{ label = "Off", width = 36, onClick = function(n) ns.Host:Remove(n) end },
 		},
 	})
+	ns.PluginDrag:AddZone({ list = list, title = heading, items = items, bar = barIndex, group = group, rowH = 28 })
+	return list
 end
 
+local GROUP_TITLES = { { "left", "Left (top on side bars)" }, { "center", "Centre" }, { "right", "Right (bottom on side bars)" } }
+
 app:Section("plugins", "Plugins", function(stack)
-	UI.Header(stack, "Plugins", "Every LibDataBroker plugin from any addon can go on a bar. In unlock mode you can also drag them between bars and groups.")
+	ns.PluginDrag:Reset()
+	UI.Header(stack, "Plugins", "Drag a row by its grip to move it: inside a group, to another group"
+		.. (#ns.db.bars > 1 and " or bar" or "") .. ", or down to Not on a bar. Right-click or Escape cancels. < and > move one step.")
 	barPicker(stack)
-	groupList(stack, "left", "Left (top on side bars)")
-	groupList(stack, "center", "Centre")
-	groupList(stack, "right", "Right (bottom on side bars)")
-	UI.Header(stack, "Not on a bar", "Add puts it at the right end of the bar picked above.")
-	UI.List(stack, {
-		empty = "Every plugin is on a bar.",
+	-- the page is built for these bars; a bar added, deleted, renamed or moved to another edge builds it again
+	local function barsKey()
+		local t = {}
+		for i, b in ipairs(ns.db.bars) do t[i] = tostring(b.name) .. " @ " .. tostring(b.edge) end
+		return table.concat(t, " ; ")
+	end
+	local built = barsKey()
+	local watch = CreateFrame("Frame")
+	function watch:Refresh()
+		if barsKey() ~= built then
+			built = barsKey() -- once: the rebuild comes on the next frame
+			C_Timer.After(0, function() app:RebuildSection("plugins") end)
+		end
+	end
+	stack:Add(watch, 0, 0)
+	local many = #ns.db.bars > 1
+	for i, b in ipairs(ns.db.bars) do
+		if many then UI.Header(stack, "Bar " .. i .. ": " .. (b.name or "Bar") .. " (" .. b.edge .. ")") end
+		for _, g in ipairs(GROUP_TITLES) do groupList(stack, i, g[1], g[2]) end
+	end
+	local offHeading = UI.Header(stack, "Not on a bar", "Drag one onto a group above, or Add puts it at the right end of the bar picked above.")
+	local function offItems()
+		local out = {}
+		for _, n in ipairs(ns.Host:Names()) do if not ns.db.placement[n] then out[#out + 1] = n end end
+		return out
+	end
+	local off = UI.List(stack, {
+		empty = "Every plugin is on a bar. Drag one here to take it off.",
 		rowHeight = 28,
 		titleWidth = 260,
-		items = function()
-			local out = {}
-			for _, n in ipairs(ns.Host:Names()) do if not ns.db.placement[n] then out[#out + 1] = n end end
-			return out
-		end,
+		items = offItems,
 		title = function(n) return ns.Host:Title(n) end,
 		detail = function(n)
 			local rec = ns.Host.plugins[n]
 			return rec and ns.Host:Kind(rec) or ""
 		end,
-		icon = function(n)
-			local rec = ns.Host.plugins[n]
-			local i = rec and rec.obj.icon
-			if i ~= nil and not ns.IsSecret(i) and (type(i) == "string" or type(i) == "number") then return i end
-		end,
+		icon = pluginIcon,
 		buttons = { { label = "Add", width = 56, onClick = function(n) ns.Host:Place(n, ns.editBar, 1, "right") end } },
 	})
+	ns.PluginDrag:AddZone({ list = off, title = offHeading, items = offItems, rowH = 28 })
 end)
 
 app:Section("modules", "Built-in", function(stack)

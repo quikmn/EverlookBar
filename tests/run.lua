@@ -877,6 +877,225 @@ step("chat: bars, bar settings, plugins", function()
 	check(lastLog():find("unknown"), "unknown command message")
 end)
 
+------------------------------------------------------------------------
+-- Plugins page: drag and drop
+------------------------------------------------------------------------
+step("drag maths: insertion slot, lanes, nearest group", function()
+	local c = L.RowCentres(3, 28, 2)
+	eq(c[1], 14, "first centre"); eq(c[3], 74, "third centre")
+	eq(L.InsertSlot(c, 0), 1, "above everything")
+	eq(L.InsertSlot(c, 20), 2, "under the first row's middle")
+	eq(L.InsertSlot(c, 59), 3, "upper half of row 3")
+	eq(L.InsertSlot(c, 500), 4, "under the last")
+	eq(L.InsertSlot({}, 10), 1, "empty list")
+	-- one lane: index is the slot, minus one when the dragged row was above the line
+	local lane, index = L.ListDrop({ 1, 1, 1 }, 4, 1)
+	eq(lane, 1); eq(index, 3, "first row dragged to the end")
+	lane, index = L.ListDrop({ 1, 1, 1 }, 1, 3)
+	eq(index, 1, "last row dragged to the top")
+	lane, index = L.ListDrop({ 1, 1, 1 }, 2, 2)
+	eq(index, 2, "dropped on itself stays")
+	lane, index = L.ListDrop({ 1, 1 }, 2, nil)
+	eq(index, 2, "from elsewhere, between the two")
+	-- two lanes shown lane by lane: the line between them belongs to the lane above
+	lane, index = L.ListDrop({ 1, 1, 2, 2 }, 3, nil)
+	eq(lane, 1); eq(index, 3, "end of lane 1")
+	lane, index = L.ListDrop({ 1, 1, 2, 2 }, 1, nil)
+	eq(lane, 1); eq(index, 1, "top: the lane of the row below")
+	lane, index = L.ListDrop({ 1, 1, 2, 2 }, 4, nil)
+	eq(lane, 2); eq(index, 2, "inside lane 2")
+	lane, index = L.ListDrop({ 1, 2 }, 2, 1)
+	eq(lane, 2); eq(index, 1, "the only lane-1 row dropped under itself takes the lane of the row below")
+	lane, index = L.ListDrop({}, 1, nil, 2)
+	eq(lane, 2); eq(index, 1, "empty group: the fallback lane")
+	local z = { { top = 0, bottom = 100 }, { top = 140, bottom = 200 } }
+	eq(L.NearestZone(z, 50), 1, "inside the first"); eq(L.NearestZone(z, 115), 1, "gap: nearer the first")
+	eq(L.NearestZone(z, 130), 2, "gap: nearer the second"); eq(L.NearestZone(z, 900), 2, "under everything")
+end)
+
+local D = ns.PluginDrag
+local function zoneOf(bar, group)
+	for _, z in ipairs(D.zones) do if z.bar == bar and z.group == group then return z end end
+end
+local function offZone()
+	for _, z in ipairs(D.zones) do if not z.bar then return z end end
+end
+local function rowOf(zone, name)
+	for _, r in ipairs(zone.list.rows) do if r.item == name and r:IsShown() then return r end end
+end
+local function shownItems(zone)
+	local t = {}
+	for _, r in ipairs(zone.list.rows) do if r:IsShown() and r.item ~= nil then t[#t + 1] = r.item end end
+	return table.concat(t, ",")
+end
+local function dragTo(name, from, to, slot)
+	D:Start(name, from, rowOf(from, name))
+	check(D.drag, "drag started for " .. name)
+	D:SetTarget(to, slot)
+	return D:Drop()
+end
+local function order(bar, group) return table.concat(ns.Host:GroupList(bar, 1, group), ",") end
+
+step("Plugins page: rows have a grip; reorder inside a group, saved and live", function()
+	slash("")
+	ns.app:ShowSection("plugins")
+	for _, n in ipairs(ns.Host:GroupList(1, 1, "left")) do ns.Host:Place(n, 1, 1, "right") end
+	ns.Host:Place("Other_Plugin", 1, 1, "left", 1)
+	ns.Host:Place("EverlookBar_Gold", 1, 1, "left", 2)
+	ns.Host:Place("EverlookBar_Location", 1, 1, "left", 3)
+	local left = zoneOf(1, "left")
+	check(left and zoneOf(1, "right") and zoneOf(1, "center"), "three groups on the page")
+	eq(shownItems(left), "Other_Plugin,EverlookBar_Gold,EverlookBar_Location", "rows in bar order")
+	local r = rowOf(left, "Other_Plugin")
+	check(r.dragGrip and r.__drag, "grip shown, row registered for dragging")
+	eq(dragTo("Other_Plugin", left, left, 4), "place")
+	eq(order(1, "left"), "EverlookBar_Gold,EverlookBar_Location,Other_Plugin", "moved to the end")
+	eq(shownItems(left), "EverlookBar_Gold,EverlookBar_Location,Other_Plugin", "page shows it at once")
+	eq(EverlookBarDB.placement.Other_Plugin.order, 3, "saved")
+	-- the bar itself: the button sits after the other two
+	local function bx(n) return ns.Host.plugins[n].button.pos.x end
+	check(bx("Other_Plugin") > bx("EverlookBar_Location") and bx("EverlookBar_Location") > bx("EverlookBar_Gold"), "bar updated live")
+	dragTo("EverlookBar_Location", left, left, 1)
+	eq(order(1, "left"), "EverlookBar_Location,EverlookBar_Gold,Other_Plugin", "moved to the top")
+	eq(rowOf(left, "EverlookBar_Gold"):GetAlpha(), 1, "no row left dimmed")
+end)
+
+step("Plugins page: drag across groups, off the bar and back on", function()
+	local left, right, off = zoneOf(1, "left"), zoneOf(1, "right"), offZone()
+	check(off, "Not on a bar is a drop zone")
+	local before = #ns.Host:GroupList(1, 1, "right")
+	dragTo("EverlookBar_Gold", left, right, 1)
+	local p = ns.db.placement.EverlookBar_Gold
+	eq(p.group, "right", "now in the right group"); eq(p.bar, 1)
+	eq(ns.Host:GroupList(1, 1, "right")[1], "EverlookBar_Gold", "at the top of it")
+	eq(#ns.Host:GroupList(1, 1, "right"), before + 1, "one more on the right")
+	eq(dragTo("EverlookBar_Gold", right, off), "remove")
+	check(ns.db.placement.EverlookBar_Gold == nil, "off the bar")
+	check(EverlookBarDB.placement.EverlookBar_Gold == nil, "saved off")
+	check(not ns.Host.plugins.EverlookBar_Gold.button:IsShown(), "its button is gone from the bar")
+	check(rowOf(off, "EverlookBar_Gold"), "listed under Not on a bar")
+	eq(dragTo("EverlookBar_Gold", off, off), nil, "from Not on a bar to itself: nothing")
+	eq(dragTo("EverlookBar_Gold", off, left, 2), "place")
+	eq(order(1, "left"), "EverlookBar_Location,EverlookBar_Gold,Other_Plugin", "added between the two")
+	check(ns.Host.plugins.EverlookBar_Gold.button:IsShown(), "back on the bar")
+	check(not rowOf(off, "EverlookBar_Gold"), "no longer under Not on a bar")
+	eq(dragTo("Other_Plugin", left, nil), nil, "dropped off the page: nothing")
+	eq(order(1, "left"), "EverlookBar_Location,EverlookBar_Gold,Other_Plugin", "unchanged")
+end)
+
+step("Plugins page: cancel with Escape, right-click, or by closing the window", function()
+	local left, right = zoneOf(1, "left"), zoneOf(1, "right")
+	local was = order(1, "left")
+	D:Start("Other_Plugin", left, rowOf(left, "Other_Plugin"))
+	D:SetTarget(right, 1)
+	check(ns.app.window.eluiEscape(ns.app.window), "Escape is taken by the drag")
+	check(D.drag == nil, "cancelled")
+	check(ns.app:IsShown(), "the window stays open")
+	D:Drop() -- the mouse button comes up afterwards: nothing happens
+	eq(order(1, "left"), was, "nothing moved")
+	eq(rowOf(left, "Other_Plugin"):GetAlpha(), 1, "row back to full")
+	-- right-click while dragging
+	local down = { LeftButton = true }
+	IsMouseButtonDown = function(b) return down[b] or false end
+	D:Start("Other_Plugin", left, rowOf(left, "Other_Plugin"))
+	D:SetTarget(right, 1)
+	down.RightButton = true
+	D:Update()
+	check(D.drag == nil, "right-click cancels")
+	IsMouseButtonDown = nil
+	eq(order(1, "left"), was, "nothing moved")
+	-- closing the window mid-drag
+	D:Start("Other_Plugin", left, rowOf(left, "Other_Plugin"))
+	slash("")
+	check(D.drag == nil, "closing the window cancels")
+	eq(order(1, "left"), was, "nothing moved")
+	-- a list lent to search results can't be dragged from
+	slash("")
+	ns.app:ShowSection("plugins")
+	left = zoneOf(1, "left")
+	left.list.stackEntry.borrowed = true
+	D:Start("Other_Plugin", left, rowOf(left, "Other_Plugin"))
+	check(D.drag == nil, "no drag from a borrowed list")
+	left.list.stackEntry.borrowed = nil
+end)
+
+step("Plugins page: the cursor picks the group and the line; the page scrolls at its edges", function()
+	local scroll = D.zones[1].list:GetParent():GetParent()
+	check(rawget(scroll, "ScrollBy"), "page scroll found")
+	scroll.__left, scroll.__w, scroll.__bottom, scroll.__h = 0, 500, 0, 1000
+	local scrolled = 0
+	local realScrollBy = rawget(scroll, "ScrollBy")
+	rawset(scroll, "ScrollBy", function(_, d) scrolled = scrolled + d; return true end)
+	-- lay the zones out from the top: heading 20 px, then the rows
+	local top = 1000
+	for _, z in ipairs(D.zones) do
+		local n = #z.items()
+		local h = n == 0 and 24 or n * 30
+		if z.title then z.title.__left, z.title.__w, z.title.__h, z.title.__bottom = 0, 500, 16, top - 16 end
+		z.list.__left, z.list.__w, z.list.__h, z.list.__bottom = 0, 500, h, top - 20 - h
+		top = top - 20 - h - 30
+	end
+	local left, center = zoneOf(1, "left"), zoneOf(1, "center")
+	local lt = left.list:GetTop()
+	local zone, slot = D:TargetAt(200, lt - 50) -- the lower half of the second row (30 to 58 px down)
+	check(zone == left, "left group under the cursor"); eq(slot, 3, "line under the second row")
+	zone, slot = D:TargetAt(200, center.list:GetTop() + 10) -- on the Centre heading
+	check(zone == center, "heading counts as the group"); eq(slot, 1, "line at the top")
+	check(D:TargetAt(900, 500) == nil, "off the page: nowhere")
+	-- a real drag by the cursor: Gold to the top of Centre
+	MOCK.cursorX, MOCK.cursorY = 200, lt - 40
+	D:Start("EverlookBar_Gold", left, rowOf(left, "EverlookBar_Gold"))
+	MOCK.cursorX, MOCK.cursorY = 200, center.list:GetTop() - 2
+	D:Update()
+	check(D.drag.zone == center and D.drag.slot == 1, "target follows the cursor")
+	eq(scrolled, 0, "no scrolling in the middle")
+	MOCK.cursorY = 1000 - 5
+	D:Update()
+	check(scrolled < 0, "scrolls up near the top")
+	scrolled = 0
+	MOCK.cursorY = 5
+	D:Update()
+	check(scrolled > 0, "scrolls down near the bottom")
+	MOCK.cursorX, MOCK.cursorY = 200, center.list:GetTop() - 2
+	D:Update()
+	D:Drop()
+	eq(ns.Host:GroupList(1, 1, "center")[1], "EverlookBar_Gold", "dropped at the top of Centre")
+	rawset(scroll, "ScrollBy", realScrollBy)
+	MOCK.cursorX, MOCK.cursorY = 0, 0
+	ns.Host:Place("EverlookBar_Gold", 1, 1, "left", 2)
+end)
+
+step("Plugins page: more bars show under their names; drag between bars", function()
+	ns.Options:AddBar("bottom")
+	flush()
+	ns.app:ShowSection("plugins")
+	flush()
+	check(zoneOf(2, "left") and zoneOf(2, "right"), "bar 2's groups on the page")
+	local count = 0
+	for _, z in ipairs(D.zones) do if z.bar then count = count + 1 end end
+	eq(count, 6, "three groups per bar")
+	dragTo("Other_Plugin", zoneOf(1, "left"), zoneOf(2, "center"), 1)
+	local p = ns.db.placement.Other_Plugin
+	eq(p.bar, 2, "on bar 2"); eq(p.group, "center")
+	check(ns.Host.plugins.Other_Plugin.button:GetParent() == ns.Bars.frames[2], "button moved to bar 2's frame")
+	-- two rows on bar 2: a drop under a row-2 plugin lands in row 2
+	ns.db.bars[2].lanes = 2
+	ns.Host:Place("EverlookBar_Gold", 2, 2, "center", 1)
+	local c2 = zoneOf(2, "center")
+	eq(shownItems(c2), "Other_Plugin,EverlookBar_Gold", "row 1 then row 2")
+	dragTo("EverlookBar_Location", zoneOf(1, "left"), c2, 3)
+	eq(ns.db.placement.EverlookBar_Location.lane, 2, "joined row 2"); eq(ns.db.placement.EverlookBar_Location.order, 2)
+	ns.Options:DeleteBar(2)
+	flush()
+	ns.app:ShowSection("plugins")
+	flush()
+	check(zoneOf(2, "left") == nil, "page rebuilt for one bar")
+	ns.Host:Place("Other_Plugin", 1, 1, "right")
+	ns.Host:Place("EverlookBar_Gold", 1, 1, "right")
+	ns.Host:Place("EverlookBar_Location", 1, 1, "left", 1)
+	slash("")
+end)
+
 step("unlock mode: refused in combat, drag plugin onto a bar", function()
 	MOCK.combat = true
 	slash("unlock")
