@@ -170,7 +170,7 @@ app:Setting({ key = "minimap.unlocked", type = "bool", label = "Unlock minimap (
 	set = function(v) mm:SetUnlocked(v) end,
 	disabled = function() return not mm.running or mm.stepAside ~= nil end })
 mmSetting("scale", { type = "number", label = "Minimap size", min = 0.5, max = 2.5, step = 0.05, fmt = "%.2f" })
-mmSetting("snapEdges", { type = "bool", label = "Snap to screen edges when dropped" })
+mmSetting("snapEdges", { type = "bool", label = "Snap to screen edges when dropped", keywords = { "sticky", "magnet", "nudge", "edge" } })
 mmSetting("zoneLabel", { type = "choice", label = "Zone line on the minimap", width = 260, choices = {
 	{ value = "off", text = "Off" }, { value = "subzone", text = "Where you stand (subzone)" },
 	{ value = "zone", text = "The zone" }, { value = "both", text = "Zone: subzone" } } })

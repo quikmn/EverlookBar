@@ -688,12 +688,19 @@ step("minimap: unlock, left-drag the map itself, lock (general unlock mode off)"
 	-- drag: lands where dropped
 	drag(ov, mm.holder, 700, 500)
 	eq(db.point[1], 770, "x saved (centre)"); eq(db.point[2], 570, "y saved")
-	-- snap: dropped 5 px from the right edge -> flush
+	-- snapping is off by default: dropped 5 px from the right edge stays there
+	eq(db.snapEdges, false, "no sticky edges by default")
+	local pad = mm:BorderPad()
 	drag(ov, mm.holder, 1920 - 140 - 5, 300)
-	eq(db.point[1], 1920 - 70, "snapped to the right edge")
+	eq(db.point[1], 1920 - 140 - 5 + 70, "stays where dropped")
+	-- switched on: flush to the edge, border included (never cut off)
+	db.snapEdges = true
+	drag(ov, mm.holder, 1920 - 140 - 5, 300)
+	eq(db.point[1], 1920 - 70 - pad, "snapped to the right edge, border on screen")
+	db.snapEdges = false
 	-- dragged half off screen -> back on screen
 	drag(ov.handle, mm.holder, -60, 300)
-	eq(db.point[1], 70, "kept on screen")
+	eq(db.point[1], 70 + mm:BorderPad(), "kept on screen, border included")
 	-- wheel: size in 5% steps, saved
 	ov.__scripts.OnMouseWheel(ov, 1)
 	eq(db.scale, 1.05, "wheel up"); eq(mm.holder:GetScale(), 1.05, "applied")
@@ -709,8 +716,8 @@ step("minimap: unlock, left-drag the map itself, lock (general unlock mode off)"
 	-- reset
 	slash("minimap reset")
 	eq(db.scale, 1, "reset size")
-	eq(db.point[1], 1920 - 70 - 16, "reset to the top-right corner")
-	eq(db.point[2], 1080 - 70 - 34)
+	eq(db.point[1], 1920 - 70 - mm:BorderPad() - 16, "reset to the top-right corner")
+	eq(db.point[2], 1080 - 70 - mm:BorderPad() - 34)
 end)
 
 step("minimap: no moving in combat, says why; combat locks it", function()
@@ -783,13 +790,13 @@ step("minimap: a smaller screen keeps the minimap on it", function()
 	UIParent.__w, UIParent.__h = 1280, 720
 	MOCK.Fire("DISPLAY_SIZE_CHANGED")
 	local _, _, _, x, y = mm.holder:GetPoint(1)
-	eq(x, 1280 - 70, "pulled back on screen (x)")
-	eq(y, 720 - 70, "pulled back on screen (y)")
+	eq(x, 1280 - 70 - mm:BorderPad(), "pulled back on screen (x)")
+	eq(y, 720 - 70 - mm:BorderPad(), "pulled back on screen (y)")
 	eq(db.point[1], 1850, "the saved spot is kept for the bigger screen")
 	UIParent.__w, UIParent.__h = 1920, 1080
 	MOCK.Fire("DISPLAY_SIZE_CHANGED")
 	_, _, _, x = mm.holder:GetPoint(1)
-	eq(x, 1850, "back where it was")
+	eq(x, 1920 - 70 - mm:BorderPad(), "back where it was, border kept on screen")
 	mm:ResetPosition()
 end)
 

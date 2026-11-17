@@ -12,7 +12,7 @@ local M = ns:NewModule({
 	id = "minimap", title = "Clean minimap",
 	desc = "Move, scale and tidy the minimap; collect addon buttons into one drawer.",
 	defaults = {
-		snapEdges = true,      -- a dropped minimap snaps flush to a screen edge within 12 px
+		snapEdges = false,     -- off by default: a dropped minimap stays exactly where it is put (on: snaps within 12 px)
 		zoneLabel = "off",     -- our own zone line: off | subzone | zone | both
 		zoneLabelPos = "top",  -- top | bottom
 		point = nil,           -- { x, y }: the minimap's centre on screen (UIParent units, from bottom-left)
@@ -470,6 +470,7 @@ end
 function M:ApplyFrame()
 	if self.stepAside then return end
 	local db = mdb()
+	if not db.snapDefaultOff then db.snapDefaultOff = true; db.snapEdges = false end
 	if not holder then
 		holder = CreateFrame("Frame", ns.PREFIX .. "MinimapHolder", UIParent)
 		holder:SetFrameStrata("LOW")
@@ -483,8 +484,11 @@ function M:ApplyFrame()
 	local scale = M.ClampScale(db.scale)
 	local cx, cy = self:Center()
 	local W, H = screenSize()
-	local x, y = M.SnapCenter(cx, cy, w * scale, h * scale, W, H, 0)
+	local pad = 2 * self:BorderPad()
+	local x, y = M.SnapCenter(cx, cy, (w + pad) * scale, (h + pad) * scale, W, H, 0)
 	holder:SetScale(scale)
+	local b = self:BorderPad()
+	if holder.SetClampRectInsets then holder:SetClampRectInsets(-b, b, b, -b) end
 	holder:SetSize(w, h)
 	holder:ClearAllPoints()
 	holder:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
@@ -539,10 +543,18 @@ function M:SetCenter(x, y)
 end
 
 -- The minimap's size on screen, in UIParent units.
+-- The border's thickness counts as part of the minimap, so keeping it on screen never swallows one side of it.
+function M:BorderPad()
+	local db = mdb()
+	if not db.border then return 0 end
+	return math.max(1, math.min(8, math.floor(tonumber(db.borderSize) or 2)))
+end
+
 function M:ScreenSize()
 	local w, h = Minimap:GetSize()
 	local sc = M.ClampScale(mdb().scale)
-	return (ns.Num(w) or 140) * sc, (ns.Num(h) or 140) * sc
+	local pad = 2 * self:BorderPad()
+	return ((ns.Num(w) or 140) + pad) * sc, ((ns.Num(h) or 140) + pad) * sc
 end
 
 -- Keep a centre on screen and pull it flush to an edge (or the screen's middle line) when within `dist`.
