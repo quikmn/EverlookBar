@@ -317,8 +317,16 @@ end
 ------------------------------------------------------------------------
 -- Boot
 ------------------------------------------------------------------------
+-- Defaults are written into the saved settings on first load, so a changed default never reaches a player who
+-- already has the old one. Each step moves an old default to the new one; a value the player picked stays.
 local function migrate(db)
-	db.version = 1
+	local v = tonumber(db.version) or 1
+	if v < 2 then
+		-- 2026-11-18: the calendar's default became "23:59, Wednesday, 26-nov-2026" (was today's next event)
+		local cal = db.modules and db.modules.calendar
+		if cal and cal.style == "next" then cal.style = "full" end
+	end
+	db.version = 2
 end
 
 ns.On("ADDON_LOADED", ns, function(_, _, name)

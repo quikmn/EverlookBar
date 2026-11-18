@@ -47,7 +47,11 @@ end)
 
 
 step("ADDON_LOADED: saved settings, one top bar, built-ins placed", function()
+	-- a player from before the calendar's default changed: the old default moves to the new one
+	EverlookBarDB = { version = 1, modules = { calendar = { style = "next" } } }
 	MOCK.Fire("ADDON_LOADED", ADDON)
+	eq(EverlookBarDB.modules.calendar.style, "full", "old calendar default migrated")
+	eq(EverlookBarDB.version, 2, "settings version")
 	MOCK.loggedIn = true
 	MOCK.Fire("PLAYER_LOGIN")
 	MOCK.Fire("PLAYER_ENTERING_WORLD")
