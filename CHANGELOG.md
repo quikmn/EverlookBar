@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New plugin: Reputation bar. A thin bar like the XP bar for one faction, coloured by your standing with the game's own colours: red when hostile, orange unfriendly, yellow neutral, green friendly and up. It follows the faction you watch in the reputation panel, or pick any faction in `/ebar` (Built-in, Reputation bar) or with a right-click on the bar. Text: faction name, standing, value/max and percent, in the bar or beside it; your own width. The tooltip shows how much you need for the next standing; a click opens the reputation panel. It sits next to the XP bar and stays when the XP bar hides at max level.
+- New plugin: Professions. Your skill in each profession on the bar (Mining 187, Herb 150, Cook 225) with its icon; click one to open that profession's window, right-click for a list of them all. A skill at its cap is coloured (time for the next rank at a trainer); in settings: which professions to show (primary, Cooking, First Aid, Fishing, Riding), the cap too (187/225), short or full names, icons and the cap colour. The tooltip lists every profession with its skill and cap. Herbalism, Skinning, Fishing and Riding have no window to open.
+- Both new plugins are placed on your bar once when you update; take them off on the Plugins page if you don't want them.
 - Calendar: players who had the old default (today's next event) now get the new one, "23:59, Wednesday, 26-nov-2026". A text you picked yourself stays.
 - New plugin: Quest log. Shows how many quests you have out of how many the game lets you have (38/45), yellow when only a few slots are left and red when the log is full, so a quest giver never surprises you. Click opens the quest log; the tooltip says how much room is left and how many quests you track. In settings: show slots left instead, and when it turns yellow.
 - Right-click the bar to open its settings: anywhere between plugins, or on a plugin that has no clicks of its own.

@@ -51,7 +51,7 @@ step("ADDON_LOADED: saved settings, one top bar, built-ins placed", function()
 	EverlookBarDB = { version = 1, modules = { calendar = { style = "next" } } }
 	MOCK.Fire("ADDON_LOADED", ADDON)
 	eq(EverlookBarDB.modules.calendar.style, "full", "old calendar default migrated")
-	eq(EverlookBarDB.version, 2, "settings version")
+	eq(EverlookBarDB.version, 3, "settings version")
 	MOCK.loggedIn = true
 	MOCK.Fire("PLAYER_LOGIN")
 	MOCK.Fire("PLAYER_ENTERING_WORLD")
@@ -360,6 +360,252 @@ step("Quest log: in log out of the most you can have, coloured as it fills", fun
 	ns.modules.quests.Tooltip(GameTooltip)
 	check(table.concat(MOCK.tip, " "):find("45 of 45"), "tooltip count")
 	MOCK.quests = 38; MOCK.Fire("QUEST_LOG_UPDATE"); flush()
+end)
+
+step("Professions: skills on the bar, the cap coloured, weapon skills left out", function()
+	local P = ns.modules.professions
+	local obj = ldb:GetDataObjectByName("EverlookBar_Professions")
+	eq(ns.db.placement.EverlookBar_Professions.group, "left", "placed on the left by default")
+	eq(#P.rows, 6, "Mining, Herbalism, Cooking, First Aid, Fishing, Riding; no Swords")
+	eq(P.rows[1].name .. "," .. P.rows[2].name .. "," .. P.rows[3].name, "Herbalism,Mining,Cooking", "primary first, then secondary")
+	eq(#P.shown, 5, "Riding is off by default")
+	local db = ns:ModuleDB("professions")
+	eq(P.Text(db), "Herb |cffff8c40150|r  Mining 187  Cook 225  Aid |cffff8c4075|r  Fish 1", "short names, cap coloured")
+	eq(obj.text, "", "the pieces draw it")
+	local b = ns.Host.plugins.EverlookBar_Professions.button
+	check(b:IsShown(), "button shown")
+	eq(P.pieces[2].text:GetText(), "Mining 187", "one piece per profession")
+	eq(P.pieces[2].id, 186, "piece knows its skill")
+	check(P.widgetW > 0 and b.wantW >= P.widgetW, "button as wide as its pieces")
+	slash("professions.showmax on")
+	eq(P.pieces[2].text:GetText(), "Mining 187/225", "with the cap")
+	eq(P.pieces[1].text:GetText(), "Herb |cffff8c40150/150|r", "at cap: coloured")
+	slash("professions.markcap off")
+	eq(P.pieces[1].text:GetText(), "Herb 150/150", "colouring off")
+	slash("professions.markcap on"); slash("professions.showmax off")
+	slash("professions.riding on")
+	eq(#P.shown, 6, "Riding shown")
+	slash("professions.riding off"); slash("professions.fishing off"); slash("professions.primary off")
+	eq(P.Text(db), "Cook 225  Aid |cffff8c4075|r", "only the chosen ones")
+	slash("professions.primary on"); slash("professions.fishing on")
+	slash("professions.names full")
+	eq(P.pieces[1].text:GetText(), "Herbalism |cffff8c40150|r", "full names")
+	slash("professions.names none")
+	eq(P.pieces[2].text:GetText(), "187", "icon only")
+	slash("professions.icons off")
+	eq(P.pieces[2].text:GetText(), "Mining 187", "no icon and no name falls back to the short name")
+	slash("professions.icons on"); slash("professions.names short")
+	-- a skill-up, coalesced
+	MOCK.skills[2].rank = 188
+	MOCK.Fire("CHAT_MSG_SKILL"); MOCK.Fire("SKILL_LINES_CHANGED"); flush()
+	eq(P.pieces[2].text:GetText(), "Mining 188", "skill-up shown")
+	-- under a collapsed header: found by ID
+	local mining = table.remove(MOCK.skills, 2)
+	MOCK.skills[1].isCollapsed = true
+	MOCK.skillsHidden[186] = mining
+	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
+	check(P.Row(186), "Mining found under a collapsed header")
+	table.insert(MOCK.skills, 2, mining); MOCK.skills[1].isCollapsed = false; MOCK.skillsHidden[186] = nil
+	MOCK.skills[2].rank = 187
+	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
+	eq(P.pieces[2].text:GetText(), "Mining 187")
+	-- secret skill values are skipped, never compared
+	local old = MOCK.skills[5].rank
+	MOCK.skills[5].rank = S(225)
+	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
+	check(not P.Row(185), "secret rank skipped")
+	MOCK.skills[5].rank = old
+	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
+	ns.modules.professions.Tooltip(GameTooltip)
+	local tip = table.concat(MOCK.tip, "\n")
+	check(tip:find("Herbalism |cff8d94a3(no window)|r | 150/150  at cap", 1, true), "tooltip: no window, at cap\n" .. tip)
+	check(tip:find("Fishing |cff8d94a3(no window)|r | 1/75 (+25)", 1, true), "tooltip: gear bonus")
+	check(tip:find("Riding", 1, true), "tooltip lists every profession")
+	check(tip:find("At cap: a trainer", 1, true), "cap hint, no invented skill level")
+	check(tip:find("Right-click", 1, true), "click hint")
+end)
+
+step("Professions: a click opens that profession; no window, nothing; right-click lists them", function()
+	local P = ns.modules.professions
+	local b = ns.Host.plugins.EverlookBar_Professions.button
+	MOCK.opened = {}
+	local mining, herb, cook = P.pieces[2], P.pieces[1], P.pieces[3]
+	mining:GetScript("OnClick")(mining, "LeftButton")
+	eq(MOCK.opened[1], 186, "Mining piece opens Mining")
+	cook:GetScript("OnClick")(cook, "LeftButton")
+	eq(MOCK.opened[2], 185, "Cooking piece opens Cooking")
+	herb:GetScript("OnClick")(herb, "LeftButton")
+	eq(#MOCK.opened, 2, "Herbalism has no window: nothing opened")
+	b:GetScript("OnClick")(b, "LeftButton")
+	eq(MOCK.opened[3], 186, "the button itself opens the first with a window")
+	-- the open one again: closed
+	ProfessionsFrame = CreateFrame("Frame", "ProfessionsFrame")
+	MOCK.openProfession = 186
+	mining:GetScript("OnClick")(mining, "LeftButton")
+	eq(MOCK.opened[4], "close", "clicking the open profession closes it")
+	ProfessionsFrame:Hide(); MOCK.openProfession = nil
+	-- hover: the tooltip names the profession under the mouse
+	mining:GetScript("OnEnter")(mining)
+	check(table.concat(MOCK.tip, " "):find("Click: open Mining", 1, true), "hover hint")
+	mining:GetScript("OnLeave")(mining)
+	-- right-click: every profession, those without a window greyed out
+	herb:GetScript("OnClick")(herb, "RightButton")
+	check(ns.UI.IsPopupShown(), "menu shown")
+	local herbItem, cookItem
+	for _, it in ipairs(P.menuItems) do
+		if it.text:find("^Herbalism") then herbItem = it end
+		if it.text:find("^Cooking") then cookItem = it end
+	end
+	check(herbItem and herbItem.title, "Herbalism listed, not clickable")
+	check(cookItem and cookItem.value == 185, "Cooking clickable")
+	ns.UI.ClosePopup()
+	P.MenuPick(129)
+	eq(MOCK.opened[#MOCK.opened], 129, "menu opens First Aid")
+	MOCK.openFails = true
+	MOCK.log = {}
+	P.MenuPick(185)
+	check(logHas("did not open Cooking"), "says so when the game refuses")
+	MOCK.openFails = nil
+	-- unlock mode: clicks do nothing
+	ns.Unlock.active = true
+	local n = #MOCK.opened
+	mining:GetScript("OnClick")(mining, "LeftButton")
+	eq(#MOCK.opened, n, "no click in unlock mode")
+	ns.Unlock.active = false
+end)
+
+step("Reputation bar: watched faction, colours per standing, a chosen faction, width maths", function()
+	local R = ns.modules.reputation
+	local obj = ldb:GetDataObjectByName("EverlookBar_Reputation")
+	local list = ns.Host:GroupList(1, 1, "center")
+	eq(list[1] .. "," .. list[2], "EverlookBar_XP,EverlookBar_Reputation", "next to the XP bar")
+	eq(R.state.name, "Stormwind", "follows the watched faction by default")
+	check(R.state.watched, "watched")
+	eq(R.state.value .. "/" .. R.state.max, "1500/6000", "value within the standing")
+	local w = ns.Host.plugins.EverlookBar_Reputation.button.widget
+	eq(w.fill:GetWidth(), 160 * 0.25, "fill width")
+	eq(w.label:GetText(), "Stormwind: Friendly", "name and standing in the bar")
+	eq(obj.text, "", "text in the bar, not beside it")
+	-- colours: the game's own when it has them, else the classic ones
+	eq(w.fill.__color[1] .. "," .. w.fill.__color[2], "0,0.6", "friendly is green (fallback)")
+	local RED, ORANGE, YELLOW, GREEN = { r = 0.8, g = 0.1, b = 0.1 }, { r = 0.9, g = 0.5, b = 0 }, { r = 1, g = 1, b = 0 }, { r = 0, g = 0.7, b = 0 }
+	FACTION_BAR_COLORS = { RED, RED, ORANGE, YELLOW, GREEN, GREEN, GREEN, GREEN }
+	local want = { "0.8", "0.8", "0.9", "1", "0", "0", "0", "0" }
+	for standing = 1, 8 do eq(tostring((R.Color(standing))), want[standing], "standing " .. standing) end
+	eq(select(2, R.Color(4)), 1, "neutral yellow")
+	eq(tostring((R.Color(S(3)))), "1", "a secret standing reads as neutral")
+	FACTION_BAR_COLORS = nil
+	eq(select(2, R.Color(3)), 0.27, "unfriendly orange (fallback)")
+	eq(R.Color(2), 0.8, "hostile red (fallback)")
+	-- a chosen faction, from chat
+	slash("reputation.faction ironforge")
+	eq(ns:ModuleDB("reputation").faction, 47, "picked by name")
+	eq(R.state.name, "Ironforge"); check(not R.state.watched, "chosen, not watched")
+	eq(w.label:GetText(), "Ironforge: Honored")
+	MOCK.watched = 529; MOCK.Fire("UPDATE_FACTION"); flush()
+	eq(R.state.name, "Ironforge", "a chosen faction ignores the watched one")
+	slash("reputation.faction watched")
+	eq(R.state.name, "Argent Dawn", "back to the watched faction")
+	R.Tooltip(GameTooltip)
+	local tip = table.concat(MOCK.tip, "\n")
+	check(tip:find("Standing | Exalted", 1, true), "exalted\n" .. tip)
+	check(not tip:find("To ", 1, true), "no next standing after Exalted")
+	MOCK.watched = 72; MOCK.Fire("UPDATE_FACTION"); flush()
+	R.Tooltip(GameTooltip)
+	tip = table.concat(MOCK.tip, "\n")
+	check(tip:find("To Honored | 4,500", 1, true), "amount to the next standing\n" .. tip)
+	check(tip:find("watched faction", 1, true) and tip:find("Right-click", 1, true), "source and click hint")
+	-- an unknown faction falls back to the watched one; none watched says so
+	ns:ModuleDB("reputation").faction = 99999; R:Update(); flush()
+	eq(R.state.name, "Stormwind", "unknown faction: watched instead")
+	ns:ModuleDB("reputation").faction = "watched"
+	MOCK.watched = nil; MOCK.Fire("UPDATE_FACTION"); flush()
+	eq(w.label:GetText(), "No faction watched")
+	check(ns.Host.plugins.EverlookBar_Reputation.button:IsShown(), "never hidden")
+	MOCK.watched = 72; MOCK.Fire("UPDATE_FACTION"); flush()
+	-- text options
+	slash("reputation.showvalue on"); slash("reputation.showpercent on")
+	eq(w.label:GetText(), "Stormwind: Friendly 1,500/6,000 25%")
+	slash("reputation.showname off"); slash("reputation.showstanding off")
+	eq(w.label:GetText(), "1,500/6,000 25%")
+	slash("reputation.textinbar off")
+	eq(obj.text, "1,500/6,000 25%", "text beside the bar")
+	eq(w.label:GetText(), "", "nothing in the bar")
+	slash("reputation.textinbar on"); slash("reputation.showname on"); slash("reputation.showstanding on")
+	slash("reputation.showvalue off"); slash("reputation.showpercent off")
+	-- width maths
+	slash("reputation.width 200")
+	eq(w.fill:GetWidth(), 50, "a quarter of 200")
+	eq(R.FillWidth({ valid = true, value = 0, max = 0 }, 120), 120, "no room left: full bar")
+	eq(R.FillWidth({ valid = true, value = 3000, max = 6000 }, 100), 50, "half")
+	eq(R.FillWidth({ valid = true, value = 9000, max = 6000 }, 100), 100, "never past the end")
+	eq(R.FillWidth({ valid = false }, 100), 0.01, "no data: empty")
+	slash("reputation.width 160")
+	-- at max level the XP bar hides; the reputation bar stays
+	MOCK.xp.level = 60; MOCK.Fire("PLAYER_LEVEL_UP"); flush()
+	check(not ns.Host.plugins.EverlookBar_XP.button:IsShown(), "XP hidden at max level")
+	check(ns.Host.plugins.EverlookBar_Reputation.button:IsShown(), "reputation stays")
+	MOCK.xp.level = 20; MOCK.Fire("PLAYER_LEVEL_UP"); flush()
+	-- clicks
+	local b = ns.Host.plugins.EverlookBar_Reputation.button
+	b:GetScript("OnClick")(b, "LeftButton")
+	eq(MOCK.toggled, "ReputationFrame", "left-click opens the reputation panel")
+	b:GetScript("OnClick")(b, "RightButton")
+	check(ns.UI.IsPopupShown(), "right-click: the faction list")
+	ns.UI.ClosePopup()
+end)
+
+step("Reputation bar: the faction list, grouped, flat or by header as room allows", function()
+	local R = ns.modules.reputation
+	local items = R.Items(100)
+	local t = {}
+	for _, it in ipairs(items) do t[#t + 1] = (it.title and "#" or "") .. it.text end
+	eq(table.concat(t, ","), "Watched faction (the game's own),#Alliance,Ironforge,Stormwind,#Other,Argent Dawn,Bloodsail Buccaneers,Booty Bay,Wintersaber Trainers", "grouped, A-Z inside")
+	check(MOCK.factions[4].isCollapsed, "a collapsed header is closed again after reading")
+	items = R.Items(8)
+	eq(#items, 7, "too tall grouped: A-Z without headers")
+	check(not items[2].title, "no header rows")
+	items = R.Items(5)
+	eq(#items, 3, "too tall even flat: one row per header")
+	eq(items[3].value, "group:2")
+	R.Pick("group:2")
+	check(ns.UI.IsPopupShown(), "a header opens its factions")
+	eq(ns:ModuleDB("reputation").faction, "watched", "a header is not a choice")
+	ns.UI.ClosePopup()
+	R.Pick(21)
+	eq(R.state.name, "Booty Bay", "a faction under a collapsed header")
+	eq(R.state.reaction, 3)
+	R.Pick("watched")
+	eq(R.ChoiceText("watched"), "Watched faction (the game's own)")
+	eq(R.ChoiceText(47), "Ironforge")
+end)
+
+step("Professions and reputation settings are in the window's search", function()
+	local wasShown = ns.app:IsShown()
+	if not wasShown then slash("") end
+	local function finds(q, key)
+		for _, m in ipairs(ns.app:Search(q)) do if m.entry.info and m.entry.info.key == key then return true end end
+		return false
+	end
+	check(finds("faction", "reputation.faction"), "faction")
+	check(finds("watched", "reputation.faction"), "watched")
+	check(finds("reputation width", "reputation.width"), "reputation width")
+	check(finds("cooking", "professions.cooking"), "cooking")
+	check(finds("profession", "professions.showmax"), "profession")
+	check(finds("trainer", "professions.markcap"), "trainer")
+	ns.app:Search("")
+	if not wasShown then slash("") end
+end)
+
+step("Migration: players with a layout get the new plugins placed once", function()
+	local saved = ns.newModules
+	ns.newModules = {}
+	ns.Migrate({ version = 2, seenLayout = true })
+	check(ns.newModules.professions and ns.newModules.reputation, "placed for an existing layout")
+	ns.newModules = {}
+	ns.Migrate({ version = 3, seenLayout = true })
+	check(not ns.newModules.professions, "only once")
+	ns.newModules = saved
 end)
 
 step("Clock: off by default; switched on from chat it places itself", function()

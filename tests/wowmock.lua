@@ -386,3 +386,76 @@ function MOCK.Fire(event, ...)
 		if w.__events[event] and w.__scripts.OnEvent then w.__scripts.OnEvent(w, event, ...) end
 	end
 end
+
+-- Skills (C_SkillInfo: the classic skill list with headers) and professions
+local function skill(id, name, rank, max, cat, mod) return { skillID = id, name = name, isHeader = false, isCollapsed = false, rank = rank, maxRank = max, modifier = mod or 0, skillLineCategoryID = cat } end
+local function skillHeader(name, cat, collapsed) return { skillID = 0, name = name, isHeader = true, isCollapsed = collapsed or false, rank = 0, maxRank = 0, modifier = 0, skillLineCategoryID = cat } end
+MOCK.skills = {
+	skillHeader("Professions", 11),
+	skill(186, "Mining", 187, 225, 11),
+	skill(182, "Herbalism", 150, 150, 11),
+	skillHeader("Secondary Skills", 9),
+	skill(185, "Cooking", 225, 300, 9),
+	skill(129, "First Aid", 75, 75, 9),
+	skill(356, "Fishing", 1, 75, 9, 25),
+	skill(762, "Riding", 75, 75, 9),
+	skillHeader("Weapon Skills", 6),
+	skill(43, "Swords", 100, 100, 6),
+}
+MOCK.skillsHidden = {} -- [id] = info: under a collapsed header (only GetSkillLineInfoByID sees it)
+C_SkillInfo = {
+	GetNumSkillLines = function() return #MOCK.skills end,
+	GetSkillLineInfo = function(i) return MOCK.skills[i] end,
+	GetSkillLineInfoByID = function(id)
+		if MOCK.skillsHidden[id] then return MOCK.skillsHidden[id] end
+		for _, s in ipairs(MOCK.skills) do if s.skillID == id and not s.isHeader then return s end end
+	end,
+}
+MOCK.opened = {}
+C_TradeSkillUI = {
+	OpenTradeSkill = function(id) table.insert(MOCK.opened, id); return MOCK.openFails ~= true end,
+	CloseTradeSkill = function() table.insert(MOCK.opened, "close") end,
+	GetBaseProfessionInfo = function() return { professionID = MOCK.openProfession or 0 } end,
+}
+
+-- Reputation (C_Reputation, retail-style FactionData)
+local function faction(id, name, reaction, cur, lo, hi, extra)
+	local d = { factionID = id, name = name, reaction = reaction, currentStanding = cur, currentReactionThreshold = lo,
+		nextReactionThreshold = hi, isHeader = false, isCollapsed = false, isHeaderWithRep = false, isChild = false }
+	for k, v in pairs(extra or {}) do d[k] = v end
+	return d
+end
+MOCK.factions = {
+	faction(469, "Alliance", 0, 0, 0, 0, { isHeader = true }),
+	faction(72, "Stormwind", 5, 4500, 3000, 9000),
+	faction(47, "Ironforge", 6, 12000, 9000, 21000),
+	faction(1118, "Other", 0, 0, 0, 0, { isHeader = true, isCollapsed = true }),
+	faction(87, "Bloodsail Buccaneers", 1, -40000, -42000, -6000),
+	faction(529, "Argent Dawn", 8, 42500, 42000, 42999),
+}
+MOCK.factionsUnder = { -- shown when "Other" is expanded
+	faction(21, "Booty Bay", 3, -2000, -3000, 0),
+	faction(589, "Wintersaber Trainers", 4, 100, 0, 3000),
+}
+MOCK.collapseCalls = 0
+local function visibleFactions()
+	local t = {}
+	for _, f in ipairs(MOCK.factions) do
+		t[#t + 1] = f
+		if f.factionID == 1118 and not f.isCollapsed then for _, c in ipairs(MOCK.factionsUnder) do t[#t + 1] = c end end
+	end
+	return t
+end
+MOCK.watched = 72
+C_Reputation = {
+	GetNumFactions = function() return #visibleFactions() end,
+	GetFactionDataByIndex = function(i) return visibleFactions()[i] end,
+	GetFactionDataByID = function(id)
+		for _, f in ipairs(MOCK.factions) do if f.factionID == id then return f end end
+		for _, f in ipairs(MOCK.factionsUnder) do if f.factionID == id then return f end end
+	end,
+	GetWatchedFactionData = function() return MOCK.watched and C_Reputation.GetFactionDataByID(MOCK.watched) or nil end,
+	ExpandFactionHeader = function(i) visibleFactions()[i].isCollapsed = false end,
+	CollapseFactionHeader = function(i) MOCK.collapseCalls = MOCK.collapseCalls + 1; visibleFactions()[i].isCollapsed = true end,
+}
+ToggleCharacter = function(tab) MOCK.toggled = tab end

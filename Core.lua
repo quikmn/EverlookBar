@@ -304,7 +304,7 @@ function ns:SetModuleEnabled(m, on, user)
 		if m.Available and not m:Available() then return end
 		m.running = true
 		ns.SafeCall(m, m.Enable, m)
-		if m.ldbName and ns.Host and (user or not ns.db.seenLayout) then ns.Host:PlaceDefault(m.ldbName, m.place) end
+		if m.ldbName and ns.Host and (user or not ns.db.seenLayout or ns.newModules[m.id]) then ns.Host:PlaceDefault(m.ldbName, m.place) end
 	elseif not on and m.running then
 		m.running = false
 		ns.OffAll(m)
@@ -319,6 +319,7 @@ end
 ------------------------------------------------------------------------
 -- Defaults are written into the saved settings on first load, so a changed default never reaches a player who
 -- already has the old one. Each step moves an old default to the new one; a value the player picked stays.
+ns.newModules = {} -- [moduleId] = true: place it on bar 1 this session (see migrate)
 local function migrate(db)
 	local v = tonumber(db.version) or 1
 	if v < 2 then
@@ -326,8 +327,14 @@ local function migrate(db)
 		local cal = db.modules and db.modules.calendar
 		if cal and cal.style == "next" then cal.style = "full" end
 	end
-	db.version = 2
+	if v < 3 and db.seenLayout then
+		-- 2026-11-18: new built-ins (Professions, Reputation bar) are placed once for players who had a layout
+		-- already; new players get every default anyway. Taken off a bar after that, they stay off.
+		ns.newModules.professions, ns.newModules.reputation = true, true
+	end
+	db.version = 3
 end
+ns.Migrate = migrate -- tests
 
 ns.On("ADDON_LOADED", ns, function(_, _, name)
 	if name ~= ADDON then return end

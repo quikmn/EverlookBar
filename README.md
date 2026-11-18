@@ -15,6 +15,10 @@ spacing. Side bars stack their plugins. Plugins sit in left, centre and right gr
 ElvUI show. Built in (each one switchable, each one a normal LDB plugin):
 
 - **XP bar**: a thin bar with rested XP and the percentage. Hidden at max level.
+- **Reputation bar**: one faction as a thin bar like the XP bar, coloured by standing (red, orange, yellow, green).
+  Follows your watched faction, or pick one in the settings or with a right-click. Stays at max level.
+- **Professions**: your skill in each profession (Mining 187, Herb 150, Cook 225); click one to open it, right-click
+  for the list. A skill at its cap is coloured: time for the next rank at a trainer.
 - **Performance**: FPS and latency; memory, CPU per addon and bandwidth in the tooltip.
 - **Location**: zone, subzone (Tarren Mill, Southshore Inn) and coordinates. Click to open the map.
 - **Durability**: your most worn item in percent; every slot in the tooltip.

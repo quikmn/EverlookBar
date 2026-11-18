@@ -154,6 +154,32 @@ modSetting("calendar", "filter", { type = "choice", label = "Calendar tooltip sh
 	{ value = "guild", text = "Guild events only" } } })
 modSetting("calendar", "lockouts", { type = "bool", label = "Calendar: include raid lockouts and resets" })
 modSetting("calendar", "h24", { type = "bool", label = "Calendar: 24-hour times" })
+local PROF_WORDS = { "profession", "professions", "trade", "skill", "crafting", "tradeskill" }
+modSetting("professions", "primary", { type = "bool", label = "Show primary professions (Mining, Tailoring...)", keywords = PROF_WORDS })
+modSetting("professions", "cooking", { type = "bool", label = "Show Cooking", keywords = PROF_WORDS })
+modSetting("professions", "firstAid", { type = "bool", label = "Show First Aid", keywords = PROF_WORDS })
+modSetting("professions", "fishing", { type = "bool", label = "Show Fishing", keywords = PROF_WORDS })
+modSetting("professions", "riding", { type = "bool", label = "Show Riding", keywords = PROF_WORDS })
+modSetting("professions", "names", { type = "choice", label = "Profession names", width = 260, keywords = PROF_WORDS, choices = {
+	{ value = "short", text = "Short (Herb 150)" }, { value = "full", text = "Full (Herbalism 150)" }, { value = "none", text = "None, just the icon (150)" } } })
+modSetting("professions", "icons", { type = "bool", label = "Profession icons", keywords = PROF_WORDS })
+modSetting("professions", "showMax", { type = "bool", label = "Show the cap too (187/225)", keywords = { "profession", "max", "maximum", "cap", "limit", "skill" } })
+modSetting("professions", "markCap", { type = "bool", label = "Colour a skill at its cap (time for the next trainer rank)",
+	keywords = { "profession", "trainer", "rank", "cap", "max", "colour", "color", "skill" } })
+modSetting("professions", "capColor", { type = "color", label = "Colour of a skill at its cap", keywords = { "profession", "trainer", "rank", "cap", "colour", "color" } })
+local REP_WORDS = { "reputation", "rep", "faction", "standing", "exalted", "honored" }
+local rep = ns.modules.reputation
+modSetting("reputation", "faction", { type = "choice", label = "Faction to track", width = 300, choices = rep.choices,
+	keywords = { "reputation", "rep", "faction", "watched", "track", "standing" },
+	desc = "The game's watched faction (the default), or any faction you know. Right-click the bar to pick quickly.",
+	get = function() return ns:ModuleDB("reputation").faction end,
+	set = function(v) rep.Pick(v) end })
+modSetting("reputation", "width", { type = "number", label = "Reputation bar width", min = 40, max = 600, keywords = REP_WORDS })
+modSetting("reputation", "showName", { type = "bool", label = "Show the faction name", keywords = REP_WORDS })
+modSetting("reputation", "showStanding", { type = "bool", label = "Show the standing (Friendly, Honored...)", keywords = REP_WORDS })
+modSetting("reputation", "showValue", { type = "bool", label = "Show reputation value / max (1,234/6,000)", keywords = REP_WORDS })
+modSetting("reputation", "showPercent", { type = "bool", label = "Show the reputation percentage", keywords = REP_WORDS })
+modSetting("reputation", "textInBar", { type = "bool", label = "Reputation text in the middle of the bar", keywords = { "reputation", "rep", "centre", "center", "inside", "text" } })
 
 ------------------------------------------------------------------------
 -- Minimap
@@ -569,6 +595,15 @@ app:Section("modules", "Built-in", function(stack)
 	end
 	UI.Header(stack, "XP bar")
 	app:Widget(stack, "xp.width"); app:Widget(stack, "xp.decimals"); app:Widget(stack, "xp.showtext")
+	UI.Header(stack, "Reputation bar", "Coloured by standing. Right-click the bar to pick a faction; at max level it keeps its place when the XP bar hides.")
+	app:Widget(stack, "reputation.faction", { items = function() return rep.Items() end, format = rep.ChoiceText })
+	app:Widget(stack, "reputation.width"); app:Widget(stack, "reputation.showname"); app:Widget(stack, "reputation.showstanding")
+	app:Widget(stack, "reputation.showvalue"); app:Widget(stack, "reputation.showpercent"); app:Widget(stack, "reputation.textinbar")
+	UI.Header(stack, "Professions", "Click a profession on the bar to open it; right-click lists them all.")
+	app:Widget(stack, "professions.primary"); app:Widget(stack, "professions.cooking"); app:Widget(stack, "professions.firstaid")
+	app:Widget(stack, "professions.fishing"); app:Widget(stack, "professions.riding")
+	app:Widget(stack, "professions.names"); app:Widget(stack, "professions.icons"); app:Widget(stack, "professions.showmax")
+	app:Widget(stack, "professions.markcap"); app:Widget(stack, "professions.capcolor")
 	UI.Header(stack, "Performance")
 	app:Widget(stack, "perf.fps"); app:Widget(stack, "perf.latency"); app:Widget(stack, "perf.memory"); app:Widget(stack, "perf.colors")
 	UI.Header(stack, "Location")
