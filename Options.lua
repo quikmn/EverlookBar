@@ -15,6 +15,11 @@ local app = UI:NewApp({
 	aliases = { "/everlookbar" },
 	frameName = ns.PREFIX,
 	tagline = "Your info bars and a clean minimap.",
+	aiAbout = "Everlook Bar puts info bars on the screen edges (or anywhere) and tidies the minimap. A bar holds plugins "
+		.. "(LibDataBroker): built-in ones (XP, reputation, professions, gold, bags, clock, location, performance...) and "
+		.. "those of other addons. Each plugin sits on one bar, in its left, centre or right group, in one row. The bar.* "
+		.. "settings change one bar at a time (the one picked in the window, bar 1 at first); write bar2.edge to change "
+		.. "bar 2. Built-in plugins have an <id>.enabled switch and their own settings; the clean minimap has the minimap.* ones.",
 	accent = ns.ACCENT,
 	position = function() return ns.db end,
 	buttons = {
@@ -46,6 +51,7 @@ local function barSetting(def)
 	def.get = def.get or function() local b = bar(); return b and b[field] end
 	def.set = def.set or function(v) local b = bar(); if b then b[field] = v end end
 	def.after = def.after or relayout
+	if def.default == nil and ns.BAR_DEFAULTS[field] ~= nil then def.default = ns.BAR_DEFAULTS[field] end
 	def.chatLabel = def.chatLabel or ("Bar " .. "%d " .. def.label:lower())
 	local label = def.chatLabel
 	def.chatLabel = nil
@@ -83,14 +89,14 @@ barSetting({ key = "bar.strata", field = "strata", type = "choice", label = "Dra
 ------------------------------------------------------------------------
 -- General
 ------------------------------------------------------------------------
-app:Setting({ key = "autoadd", type = "bool", label = "Put plugins from other addons on bar 1 when they appear",
+app:Setting({ key = "autoadd", type = "bool", label = "Put plugins from other addons on bar 1 when they appear", default = ns.DEFAULTS.autoAdd,
 	get = function() return ns.db.autoAdd end, set = function(v) ns.db.autoAdd = v end,
 	desc = "Off: new plugins wait on the Plugins page until you add them." })
-app:Setting({ key = "snap", type = "bool", label = "Snap to the grid in unlock mode",
+app:Setting({ key = "snap", type = "bool", label = "Snap to the grid in unlock mode", default = ns.DEFAULTS.snap,
 	get = function() return ns.db.snap end, set = function(v) ns.db.snap = v end })
-app:Setting({ key = "grid", type = "number", label = "Grid size (pixels)", min = 4, max = 64,
+app:Setting({ key = "grid", type = "number", label = "Grid size (pixels)", min = 4, max = 64, default = ns.DEFAULTS.grid,
 	get = function() return ns.db.grid end, set = function(v) ns.db.grid = v end })
-app:Setting({ key = "profiling", type = "bool", label = "Measure Everlook Bar's own time per plugin (for /ebar perf)",
+app:Setting({ key = "profiling", type = "bool", label = "Measure Everlook Bar's own time per plugin (for /ebar perf)", default = ns.DEFAULTS.profiling,
 	get = function() return ns.db.profiling end, set = function(v) ns.db.profiling = v; ns.SetProfiling(v) end,
 	desc = "Times every call into a plugin. Costs a little itself; leave it off unless you are measuring." })
 
@@ -101,6 +107,7 @@ local function modSetting(id, field, def)
 	def.key = id .. "." .. field:lower()
 	def.get = def.get or function() return ns:ModuleDB(id)[field] end
 	def.set = def.set or function(v) ns:ModuleDB(id)[field] = v end
+	def.default = def.default or function() local m = ns.modules[id]; return m and m.defaults and m.defaults[field] end
 	local after = def.after
 	def.after = function(v)
 		local m = ns.modules[id]
@@ -117,7 +124,7 @@ end
 
 for _, m in ipairs(ns.moduleOrder) do
 	app:Setting({ key = m.id .. ".enabled", type = "bool", label = m.title, desc = m.desc,
-		chatLabel = m.title .. " module",
+		chatLabel = m.title .. " module", default = m.default ~= false,
 		get = function() return ns:ModuleDB(m.id).enabled end,
 		set = function(v) ns:SetModuleEnabled(m, v, true) end,
 		after = function() if O.PluginsChanged then O:PluginsChanged() end end })
@@ -190,6 +197,7 @@ local function mmSetting(field, def)
 	def.key = "minimap." .. field:lower()
 	def.get = def.get or function() return ns:ModuleDB("minimap")[field] end
 	def.set = def.set or function(v) ns:ModuleDB("minimap")[field] = v end
+	def.default = def.default or function() return mm.defaults and mm.defaults[field] end
 	def.after = def.after or mmRedraw
 	def.disabled = def.disabled or function() return not mm.running or mm.stepAside ~= nil end
 	return app:Setting(def)
@@ -225,7 +233,7 @@ mmSetting("drawerCols", { type = "number", label = "Buttons per row in the drawe
 	disabled = function() return not mm.running or mm.buttonRival ~= nil end })
 local MODES = { { value = "show", text = "Show (game's place)" }, { value = "hide", text = "Hide" }, { value = "move", text = "Move (unlock mode)" } }
 for _, e in ipairs(mm.ELEMENTS) do
-	app:Setting({ key = "minimap." .. e.key, type = "choice", label = e.label, choices = MODES, width = 220,
+	app:Setting({ key = "minimap." .. e.key, type = "choice", label = e.label, choices = MODES, width = 220, default = e.default or "show",
 		get = function() return mm:Mode(e.key) end,
 		set = function(v) ns:ModuleDB("minimap").elements[e.key] = v end,
 		disabled = function() return not mm.running or mm.stepAside ~= nil end,
@@ -358,6 +366,51 @@ app:StatusLines(function()
 	for _ in pairs(ns.Host.plugins) do n = n + 1 end
 	return { #ns.db.bars .. " bar(s), " .. n .. " plugin(s); " .. (u.memKB and string.format("%.0f KB", u.memKB) or "memory ?")
 		.. ". " .. ns.SLASH .. " perf for CPU." }
+end)
+
+-- "bar2.edge" = bar.edge of bar 2: from chat ("/ebar bar2.edge left", "/ebar set bar2.edge left ; bar3.shown off") and
+-- in the AI apply box (/ebar apply), where the bar picked before is put back afterwards.
+function app:ResolveSetting(word)
+	local n, rest = tostring(word or ""):match("^[Bb][Aa][Rr](%d+)%.(.+)$")
+	if not n then return self:GetSetting(word) end
+	n = tonumber(n)
+	if not ns.db.bars[n] then return nil, "there is no bar " .. n .. " (" .. #ns.db.bars .. " bar" .. (#ns.db.bars == 1 and "" or "s") .. ")" end
+	local def = self:GetSetting("bar." .. rest)
+	if not def then return nil end
+	return def, function()
+		local before = ns.editBar
+		ns.editBar = n
+		return function() ns.editBar = before end
+	end
+end
+
+-- More for the AI text (/ebar ai): every bar with its main bar.* values, and where each plugin sits.
+local AI_BAR_KEYS = { "name", "shown", "edge", "lanes", "lanesize", "length", "align", "fontsize", "bg" }
+app:AiExtra(function(a)
+	local out = { "Bars (" .. #ns.db.bars .. "). Change one with " .. ns.SLASH .. " bar<n>.<key> <value>, e.g. "
+		.. ns.SLASH .. " bar2.edge bottom; the bar.* values above are bar " .. ns.editBar .. "'s. "
+		.. ns.SLASH .. " bar add [top|bottom|left|right|free] adds a bar (chat only)." }
+	local before = ns.editBar
+	for i in ipairs(ns.db.bars) do
+		ns.editBar = i
+		local vals = {}
+		for _, k in ipairs(AI_BAR_KEYS) do
+			local def = a:GetSetting("bar." .. k)
+			local ok, v = pcall(def.get)
+			vals[#vals + 1] = k .. " " .. (ok and a:AiValue(def, v) or "?")
+		end
+		out[#out + 1] = "- bar " .. i .. ": " .. table.concat(vals, ", ")
+	end
+	ns.editBar = before
+	out[#out + 1] = ""
+	out[#out + 1] = "Plugins and where they sit. Move one with " .. ns.SLASH .. " place <plugin> <bar> [left|center|right] [row], "
+		.. "take one off with " .. ns.SLASH .. " remove <plugin>. Type these in chat, one at a time: the apply window doesn't run them."
+	for _, name in ipairs(ns.Host:Names()) do
+		local p = ns.db.placement[name]
+		out[#out + 1] = "- " .. ns.Host:Title(name) .. ": "
+			.. (p and ("bar " .. p.bar .. ", " .. (p.group or "right") .. " group, row " .. (p.lane or 1)) or "not on a bar")
+	end
+	return table.concat(out, "\n")
 end)
 
 -- "/ebar bar2.edge left" = pick bar 2, then set bar.edge.

@@ -1190,6 +1190,48 @@ step("chat: the shared command pattern (help, lock, resets ask first, status, su
 	check(logHas("1 bar(s), ") and logHas(" plugin(s); "), "status line: " .. lastLog())
 end)
 
+step("AI help: the text lists every setting by page, the bars and plugins; the apply box takes bar2.edge", function()
+	slash("bar add left")
+	slash("place gold 2 left")
+	ns.editBar = 1
+	local t = ns.app:AiText()
+	local out = os.getenv("EBAR_AI_SAMPLE")
+	if out then local f = io.open(out, "wb"); f:write(t); f:close() end
+	local function has(want) check(t:find(want, 1, true), "AI text lacks: " .. want) end
+	has("Everlook Bar v")
+	has("Everlook Bar puts info bars on the screen edges")
+	has("Bars \194\187 Place:\n- bar.edge: Where. Choice: top = Top of the screen; bottom = Bottom of the screen;")
+	has("Now: top (Top of the screen). Default: top (Top of the screen).")
+	has("- bar.bg: Background colour and opacity. Colour: hex rrggbb, or r g b a as 0-1 numbers (a = opacity). Now: 0 0 0 0.6 (#000000). Default: 0 0 0 0.6 (#000000).")
+	has("- xp.width: XP bar width. Number 40 to 600. Now: ")
+	local clock = t:match("\n(%- clock%.enabled:[^\n]*)")
+	check(clock and clock:find("On/off. Now: o", 1, true) and clock:find("Default: off.", 1, true), "clock line: " .. tostring(clock))
+	has("- minimap.scale: Minimap size. Number 0.5 to 2.5, step 0.05.")
+	has("MORE ABOUT EVERLOOK BAR")
+	has("- bar 2: name \"Bar 2\", shown on, edge left (Left side (plugins stacked))")
+	has("- Gold: bar 2, left group, row 1")
+	has("/ebar place <plugin> <bar> [left / center / right] [row]")
+	check(not t:find("|", 1, true), "a | in the AI text")
+	-- the apply box: bar2.edge previews bar 2 and leaves bar 1 picked
+	local rows = ns.app:PlanApply("# move bar 2\n/ebar bar2.edge right\nbar.fontsize 14\nplace gold 1 right\nbar7.edge top")
+	eq(#rows, 4, "rows")
+	eq(rows[1].old, "left", "bar 2's edge")
+	eq(rows[1].value, "right", "new edge")
+	check(rows[3].err and rows[3].err:find("is a command", 1, true), "place was accepted")
+	check(rows[4].err and rows[4].err:find("there is no bar 7", 1, true), "bar 7: " .. tostring(rows[4].err))
+	eq(ns.editBar, 1, "planning picked bar 2")
+	local changed, skipped = ns.app:ApplyText("bar2.edge right\nbar.fontsize 14\nplace gold 1 right\nbar7.edge top")
+	eq(changed, 2, "changed"); eq(skipped, 2, "skipped")
+	eq(ns.db.bars[2].edge, "right", "bar 2 moved")
+	eq(ns.db.bars[1].fontSize, 14, "bar 1 font")
+	eq(ns.editBar, 1, "applying left bar 2 picked")
+	-- one chat line with several changes
+	slash("set bar2.edge bottom ; bar1.fontsize 12")
+	eq(ns.db.bars[2].edge, "bottom", "multi-set bar 2"); eq(ns.db.bars[1].fontSize, 12, "multi-set bar 1")
+	slash("bar delete 2")
+	ns.editBar = 1
+end)
+
 ------------------------------------------------------------------------
 -- Plugins page: drag and drop
 ------------------------------------------------------------------------
