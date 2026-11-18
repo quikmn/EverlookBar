@@ -394,6 +394,7 @@ MOCK.skills = {
 	skillHeader("Professions", 11),
 	skill(186, "Mining", 187, 225, 11),
 	skill(182, "Herbalism", 150, 150, 11),
+	skill(2494, "Herbalism", 150, 150, 11), -- WoW Forever: a second line with another ID and the same name
 	skillHeader("Secondary Skills", 9),
 	skill(185, "Cooking", 225, 300, 9),
 	skill(129, "First Aid", 75, 75, 9),

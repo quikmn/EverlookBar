@@ -133,6 +133,8 @@ function M:Update()
 	local db = ns:ModuleDB("reputation")
 	M.label = M.Text(state, db)
 	obj.text = db.textInBar and "" or M.label
+	-- following the game's watched faction and none is watched: take no room (pick one in /ebar, or watch one)
+	ns.API.SetHidden(self.ldbName, watched and not state.valid and state.name == "")
 	ns.API.Refresh(self.ldbName)
 end
 

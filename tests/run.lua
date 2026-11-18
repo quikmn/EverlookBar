@@ -366,7 +366,7 @@ step("Professions: skills on the bar, the cap coloured, weapon skills left out",
 	local P = ns.modules.professions
 	local obj = ldb:GetDataObjectByName("EverlookBar_Professions")
 	eq(ns.db.placement.EverlookBar_Professions.group, "left", "placed on the left by default")
-	eq(#P.rows, 6, "Mining, Herbalism, Cooking, First Aid, Fishing, Riding; no Swords")
+	eq(#P.rows, 6, "Mining, Herbalism (once, not twice), Cooking, First Aid, Fishing, Riding; no Swords")
 	eq(P.rows[1].name .. "," .. P.rows[2].name .. "," .. P.rows[3].name, "Herbalism,Mining,Cooking", "primary first, then secondary")
 	eq(#P.shown, 5, "Riding is off by default")
 	local db = ns:ModuleDB("professions")
@@ -410,11 +410,11 @@ step("Professions: skills on the bar, the cap coloured, weapon skills left out",
 	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
 	eq(P.pieces[2].text:GetText(), "Mining 187")
 	-- secret skill values are skipped, never compared
-	local old = MOCK.skills[5].rank
-	MOCK.skills[5].rank = S(225)
+	local old = MOCK.skills[6].rank
+	MOCK.skills[6].rank = S(225)
 	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
 	check(not P.Row(185), "secret rank skipped")
-	MOCK.skills[5].rank = old
+	MOCK.skills[6].rank = old
 	MOCK.Fire("SKILL_LINES_CHANGED"); flush()
 	ns.modules.professions.Tooltip(GameTooltip)
 	local tip = table.concat(MOCK.tip, "\n")
@@ -520,9 +520,9 @@ step("Reputation bar: watched faction, colours per standing, a chosen faction, w
 	eq(R.state.name, "Stormwind", "unknown faction: watched instead")
 	ns:ModuleDB("reputation").faction = "watched"
 	MOCK.watched = nil; MOCK.Fire("UPDATE_FACTION"); flush()
-	eq(w.label:GetText(), "No faction watched")
-	check(ns.Host.plugins.EverlookBar_Reputation.button:IsShown(), "never hidden")
+	check(not ns.Host:Wanted("EverlookBar_Reputation"), "none watched and none picked: takes no room")
 	MOCK.watched = 72; MOCK.Fire("UPDATE_FACTION"); flush()
+	check(ns.Host:Wanted("EverlookBar_Reputation"), "back when a faction is watched")
 	-- text options
 	slash("reputation.showvalue on"); slash("reputation.showpercent on")
 	eq(w.label:GetText(), "Stormwind: Friendly 1,500/6,000 25%")

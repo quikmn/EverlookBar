@@ -97,6 +97,14 @@ function M.Read()
 		end
 	end
 	for i = n + 1, #rows do rows[i] = nil end
+	-- WoW Forever lists some professions twice: the known skill line and a second line with another ID and the same
+	-- name (both with the same skill). Keep one per name, the known one (it has the icon and the window).
+	local known = {}
+	for _, r in ipairs(rows) do if KNOWN[r.id] then known[r.name:lower()] = true end end
+	for i = #rows, 1, -1 do
+		local r = rows[i]
+		if not KNOWN[r.id] and known[r.name:lower()] then table.remove(rows, i) end
+	end
 	table.sort(rows, sortRows)
 	return rows
 end
