@@ -27,7 +27,12 @@ local function newBar(i)
 	-- unlock mode: the bar itself is dragged (its plugins sit on top and are dragged on their own)
 	f:SetMovable(true)
 	f:RegisterForDrag("LeftButton")
-	f:EnableMouse(false)
+	-- right-click the bar (between plugins) opens the settings; it takes clicks, not mouse-over
+	f:EnableMouse(true)
+	if f.SetMouseMotionEnabled then f:SetMouseMotionEnabled(false) end
+	f:SetScript("OnMouseUp", function(_, button)
+		if button == "RightButton" and not (ns.Unlock and ns.Unlock.active) and ns.Options then ns.Options:Open() end
+	end)
 	f:SetScript("OnDragStart", function(self) if ns.Unlock and ns.Unlock.active then self:StartMoving() end end)
 	f:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
@@ -56,7 +61,7 @@ local function showUnlocked(f, bar, on)
 		f.unlockLabel:SetShown(on)
 		if on then f.unlockLabel:SetText((bar.name or "Bar") .. " (" .. bar.edge .. ") - drag to move") end
 	end
-	f:EnableMouse(on)
+	if f.SetMouseMotionEnabled then f:SetMouseMotionEnabled(on) end
 end
 
 -- Moved in unlock mode (or set from settings): a new edge, or free at x, y. Side bars and top/bottom bars keep
@@ -293,6 +298,10 @@ local function onClick(self, mouse)
 		-- the tooltip would sit on top of a menu the click opens
 		if self.shownTip == GameTooltip then GameTooltip:Hide(); self.shownTip = nil end
 		ns.SafeCall(rec, fn, self, mouse)
+	elseif mouse == "RightButton" and ns.Options then
+		-- a plugin with no clicks of its own: right-click opens the settings, like the bar itself
+		if self.shownTip == GameTooltip then GameTooltip:Hide(); self.shownTip = nil end
+		ns.Options:Open()
 	end
 end
 

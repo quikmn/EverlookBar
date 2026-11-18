@@ -35,7 +35,7 @@ What Everlook Bar reads:
 | `text` | the text on the bar. If missing: `value` and `suffix` |
 | `label` | shown before the text when the player turns Label on (Look button) |
 | `icon`, `iconCoords`, `iconR`, `iconG`, `iconB` | the icon and its tint |
-| `OnClick(frame, button)` | left, right, middle clicks |
+| `OnClick(frame, button)` | left, right, middle clicks. Without it, a right-click on your button opens the bar's settings |
 | `tooltip` | your own tooltip frame: Everlook Bar anchors and shows it |
 | `OnEnter(frame)`, `OnLeave(frame)` | you show your own tooltip (e.g. LibQTip) |
 | `OnTooltipShow(tooltip)` | fill the GameTooltip; Everlook Bar anchors it away from the bar's edge |
