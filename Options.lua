@@ -138,6 +138,9 @@ modSetting("location", "coords", { type = "bool", label = "Show coordinates" })
 modSetting("location", "colorByPvP", { type = "bool", label = "Colour the zone by PvP status" })
 modSetting("bags", "style", { type = "choice", label = "Bag text", width = 200, choices = {
 	{ value = "free/total", text = "Free / total" }, { value = "free", text = "Free only" }, { value = "used/total", text = "Used / total" } } })
+modSetting("quests", "style", { type = "choice", label = "Quest log text", width = 200, choices = {
+	{ value = "used/max", text = "In log / most you can have" }, { value = "left", text = "Slots left" } } })
+modSetting("quests", "warn", { type = "number", label = "Quest log: yellow when this many slots are left", min = 0, max = 10 })
 modSetting("mail", "hideWhenNone", { type = "bool", label = "Hide the mail plugin when there is no new mail" })
 modSetting("gold", "copper", { type = "bool", label = "Show copper" })
 modSetting("clock", "realm", { type = "bool", label = "Clock shows realm time (else this computer's)" })

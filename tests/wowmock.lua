@@ -340,6 +340,11 @@ MOCK.mail = false
 HasNewMail = function() return MOCK.mail end
 GetLatestThreeSenders = function() return "Thrall", "Jaina" end
 NUM_BAG_SLOTS = 4
+MOCK.quests = 38
+C_QuestLog = C_QuestLog or {}
+C_QuestLog.GetNumQuestLogEntries = function() return MOCK.quests + 6, MOCK.quests end -- with 6 zone headers
+C_QuestLog.GetMaxNumQuestsCanAccept = function() return 45 end
+C_QuestLog.GetNumQuestWatches = function() return 2 end
 MOCK.bags = { [0] = { 16, 3, 0 }, [1] = { 10, 0, 0 }, [2] = { 12, 5, 32 } } -- slots, free, family
 C_Container = {
 	GetContainerNumSlots = function(b) local d = MOCK.bags[b]; return d and d[1] or 0 end,

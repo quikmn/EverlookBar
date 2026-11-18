@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New plugin: Quest log. Shows how many quests you have out of how many the game lets you have (38/45), yellow when only a few slots are left and red when the log is full, so a quest giver never surprises you. Click opens the quest log; the tooltip says how much room is left and how many quests you track. In settings: show slots left instead, and when it turns yellow.
 - Right-click the bar to open its settings: anywhere between plugins, or on a plugin that has no clicks of its own.
 - Chat commands now follow one pattern across all EverlookDB addons: `/ebar help` (or `?`) lists them; `get` and `set <setting> <value>`; `search <words>`; `status` and `version`; `/ebar reset bars`, `reset all` and `minimap reset` ask first (type it again within 10 seconds; `reset all confirm` still works); a mistyped command suggests the nearest one. `/everlookbar` also works.
 - Plugins page in `/ebar`: drag and drop. Drag a plugin's row (a grip on its left) to reorder it in its group, move

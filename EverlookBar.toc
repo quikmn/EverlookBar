@@ -23,6 +23,7 @@ Modules\Location.lua
 Modules\Durability.lua
 Modules\Mail.lua
 Modules\Bags.lua
+Modules\Quests.lua
 Modules\Gold.lua
 Modules\Clock.lua
 Modules\Calendar.lua
