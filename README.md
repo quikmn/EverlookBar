@@ -20,6 +20,7 @@ ElvUI show. Built in (each one switchable, each one a normal LDB plugin):
 - **Durability**: your most worn item in percent; every slot in the tooltip.
 - **Mail**: new mail or not, with the senders.
 - **Bags**: free and total slots; profession bags apart.
+- **Quest log**: quests in your log out of the most you can have (38/45); yellow when nearly full, red when full.
 - **Gold**: with this session's change in the tooltip.
 - **Calendar**: the date or today's next event, pending invites, the coming week in the tooltip; answer invites with
   a right-click.
