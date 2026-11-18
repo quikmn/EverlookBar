@@ -51,7 +51,7 @@ step("ADDON_LOADED: saved settings, one top bar, built-ins placed", function()
 	EverlookBarDB = { version = 1, modules = { calendar = { style = "next" } } }
 	MOCK.Fire("ADDON_LOADED", ADDON)
 	eq(EverlookBarDB.modules.calendar.style, "full", "old calendar default migrated")
-	eq(EverlookBarDB.version, 3, "settings version")
+	eq(EverlookBarDB.version, 4, "settings version")
 	MOCK.loggedIn = true
 	MOCK.Fire("PLAYER_LOGIN")
 	MOCK.Fire("PLAYER_ENTERING_WORLD")
@@ -368,6 +368,9 @@ step("Professions: skills on the bar, the cap coloured, weapon skills left out",
 	eq(ns.db.placement.EverlookBar_Professions.group, "left", "placed on the left by default")
 	eq(#P.rows, 6, "Mining, Herbalism (once, not twice), Cooking, First Aid, Fishing, Riding; no Swords")
 	eq(P.rows[1].name .. "," .. P.rows[2].name .. "," .. P.rows[3].name, "Herbalism,Mining,Cooking", "primary first, then secondary")
+	eq(#P.shown, 2, "only the two main professions on the bar by default")
+	-- the rest of this step shows the secondary skills too
+	slash("professions.cooking on"); slash("professions.firstaid on"); slash("professions.fishing on")
 	eq(#P.shown, 5, "Riding is off by default")
 	local db = ns:ModuleDB("professions")
 	eq(P.Text(db), "Herb |cffff8c40150|r  Mining 187  Cook 225  Aid |cffff8c4075|r  Fish 1", "short names, cap coloured")
@@ -422,7 +425,7 @@ step("Professions: skills on the bar, the cap coloured, weapon skills left out",
 	check(tip:find("Fishing |cff8d94a3(no window)|r | 1/75 (+25)", 1, true), "tooltip: gear bonus")
 	check(tip:find("Riding", 1, true), "tooltip lists every profession")
 	check(tip:find("At cap: a trainer", 1, true), "cap hint, no invented skill level")
-	check(tip:find("Right-click", 1, true), "click hint")
+	check(tip:find("Click: every profession", 1, true), "click hint")
 end)
 
 step("Professions: a click opens that profession; no window, nothing; right-click lists them", function()
@@ -430,24 +433,20 @@ step("Professions: a click opens that profession; no window, nothing; right-clic
 	local b = ns.Host.plugins.EverlookBar_Professions.button
 	MOCK.opened = {}
 	local mining, herb, cook = P.pieces[2], P.pieces[1], P.pieces[3]
+	-- any click, left or right, folds out every profession; picking one opens it
 	mining:GetScript("OnClick")(mining, "LeftButton")
-	eq(MOCK.opened[1], 186, "Mining piece opens Mining")
-	cook:GetScript("OnClick")(cook, "LeftButton")
-	eq(MOCK.opened[2], 185, "Cooking piece opens Cooking")
-	herb:GetScript("OnClick")(herb, "LeftButton")
-	eq(#MOCK.opened, 2, "Herbalism has no window: nothing opened")
-	b:GetScript("OnClick")(b, "LeftButton")
-	eq(MOCK.opened[3], 186, "the button itself opens the first with a window")
+	check(ns.UI.IsPopupShown(), "left-click folds out the list")
+	eq(#MOCK.opened, 0, "nothing opened by the click itself")
+	P.MenuPick(186)
+	eq(MOCK.opened[1], 186, "picking Mining opens Mining")
+	P.MenuPick(185)
+	eq(MOCK.opened[2], 185, "picking Cooking opens Cooking")
 	-- the open one again: closed
 	ProfessionsFrame = CreateFrame("Frame", "ProfessionsFrame")
 	MOCK.openProfession = 186
-	mining:GetScript("OnClick")(mining, "LeftButton")
-	eq(MOCK.opened[4], "close", "clicking the open profession closes it")
+	P.MenuPick(186)
+	eq(MOCK.opened[3], "close", "picking the open profession closes it")
 	ProfessionsFrame:Hide(); MOCK.openProfession = nil
-	-- hover: the tooltip names the profession under the mouse
-	mining:GetScript("OnEnter")(mining)
-	check(table.concat(MOCK.tip, " "):find("Click: open Mining", 1, true), "hover hint")
-	mining:GetScript("OnLeave")(mining)
 	-- right-click: every profession, those without a window greyed out
 	herb:GetScript("OnClick")(herb, "RightButton")
 	check(ns.UI.IsPopupShown(), "menu shown")

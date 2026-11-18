@@ -399,7 +399,11 @@ function Bars:Compose(rec, cfg)
 		label = ns.Str(obj.label) or rec.key
 		if issecret(obj.label) then label = rec.key end
 	end
-	if label and text and text ~= "" then return LABEL_COLOR .. label .. "|r " .. text, false end
+	if label and text and text ~= "" then
+		local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+		if plain:lower() == label:lower() then return text, false end
+		return LABEL_COLOR .. label .. "|r " .. text, false
+	end
 	if label then return label, false end
 	return text or "", false
 end

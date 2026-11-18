@@ -10,7 +10,7 @@ local UI = ns.UI
 local M = ns:NewModule({
 	id = "professions", title = "Professions", ldbName = ns.PREFIX .. "_Professions",
 	desc = "Your profession skills (Mining 187, Cook 225); click one to open its window.",
-	defaults = { primary = true, cooking = true, firstAid = true, fishing = true, riding = false, showMax = false,
+	defaults = { primary = true, cooking = false, firstAid = false, fishing = false, riding = false, showMax = false,
 		names = "short", icons = true, markCap = true, capColor = { 1.00, 0.55, 0.25, 1 } },
 	place = { group = "left", order = 2 },
 })
@@ -178,7 +178,7 @@ end
 
 -- The list of every profession at the cursor: pick one to open it.
 function M.Menu(owner)
-	local items = { { title = true, text = "Open a profession" } }
+	local items = { { title = true, text = "Professions" } }
 	for _, r in ipairs(rows) do
 		local t = r.name .. "  " .. r.rank .. "/" .. r.max
 		if r.window then
@@ -200,11 +200,9 @@ function M.MenuPick(v)
 	M.Open(M.Row(v))
 end
 
--- A click: left opens the profession clicked (or the first one with a window), right lists them all.
+-- A click, left or right: folds out every profession (the bar shows only your two main ones); pick one to open it.
 function M.Click(frame, mouse, id)
-	if mouse == "RightButton" then M.Menu(frame) return end
-	local r = id and M.Row(id) or M.FirstWithWindow()
-	return M.Open(r)
+	M.Menu(frame)
 end
 
 ------------------------------------------------------------------------
@@ -367,16 +365,7 @@ function M.Tooltip(tip)
 		ns.TipHint(tip, "At cap: a trainer teaches the next rank, if there is one.")
 	end
 	tip:AddLine(" ")
-	local hover = M.hover and M.Row(M.hover)
-	if hover then
-		if hover.window then
-			ns.TipHint(tip, "Click: open " .. hover.name .. ". Right-click: every profession.")
-		else
-			ns.TipHint(tip, hover.name .. " has no window. Right-click: every profession.")
-		end
-	else
-		ns.TipHint(tip, "Click a profession to open it. Right-click: every profession.")
-	end
+	ns.TipHint(tip, "Click: every profession; pick one to open it.")
 end
 
 function M:Available()

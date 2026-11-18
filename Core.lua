@@ -332,7 +332,14 @@ local function migrate(db)
 		-- already; new players get every default anyway. Taken off a bar after that, they stay off.
 		ns.newModules.professions, ns.newModules.reputation = true, true
 	end
-	db.version = 3
+	if v < 4 then
+		-- 2026-11-18: Professions shows only the two main professions on the bar; the rest fold out on a click
+		local p = db.modules and db.modules.professions
+		if p and p.cooking == true and p.firstAid == true and p.fishing == true then
+			p.cooking, p.firstAid, p.fishing = false, false, false
+		end
+	end
+	db.version = 4
 end
 ns.Migrate = migrate -- tests
 

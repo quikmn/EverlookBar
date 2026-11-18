@@ -162,10 +162,10 @@ modSetting("calendar", "filter", { type = "choice", label = "Calendar tooltip sh
 modSetting("calendar", "lockouts", { type = "bool", label = "Calendar: include raid lockouts and resets" })
 modSetting("calendar", "h24", { type = "bool", label = "Calendar: 24-hour times" })
 local PROF_WORDS = { "profession", "professions", "trade", "skill", "crafting", "tradeskill" }
-modSetting("professions", "primary", { type = "bool", label = "Show primary professions (Mining, Tailoring...)", keywords = PROF_WORDS })
-modSetting("professions", "cooking", { type = "bool", label = "Show Cooking", keywords = PROF_WORDS })
-modSetting("professions", "firstAid", { type = "bool", label = "Show First Aid", keywords = PROF_WORDS })
-modSetting("professions", "fishing", { type = "bool", label = "Show Fishing", keywords = PROF_WORDS })
+modSetting("professions", "primary", { type = "bool", label = "On the bar: your main professions (Mining, Tailoring...)", keywords = PROF_WORDS })
+modSetting("professions", "cooking", { type = "bool", label = "On the bar: Cooking too (it is always in the fold-out)", keywords = PROF_WORDS })
+modSetting("professions", "firstAid", { type = "bool", label = "On the bar: First Aid too", keywords = PROF_WORDS })
+modSetting("professions", "fishing", { type = "bool", label = "On the bar: Fishing too", keywords = PROF_WORDS })
 modSetting("professions", "riding", { type = "bool", label = "Show Riding", keywords = PROF_WORDS })
 modSetting("professions", "names", { type = "choice", label = "Profession names", width = 260, keywords = PROF_WORDS, choices = {
 	{ value = "short", text = "Short (Herb 150)" }, { value = "full", text = "Full (Herbalism 150)" }, { value = "none", text = "None, just the icon (150)" } } })
