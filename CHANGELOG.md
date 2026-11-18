@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.0 (2026-11-19)
 
 - Professions: the bar shows only your two main professions; a click (left or right) folds out every profession, and picking one opens it. Cooking, First Aid and Fishing can still go on the bar in the settings.
 - A plugin whose name and text are the same word shows it once ("ForeverAuras" instead of "ForeverAuras ForeverAuras").
