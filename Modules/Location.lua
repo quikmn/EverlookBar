@@ -108,12 +108,13 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Location", text = "", icon = "Interface\\Icons\\INV_Misc_Map_01",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
-		OnClick = function(_, button)
+		ebarSecure = ns.SecureClick.ClickOf("WorldMapMicroButton"), -- secure when the game has the micro button
+		OnClick = ns.SecureClick.Fallback(function(_, button)
 			if button == "LeftButton" then
 				if ToggleWorldMap then ToggleWorldMap()
 				elseif WorldMapFrame then WorldMapFrame:SetShown(not WorldMapFrame:IsShown()) end
 			end
-		end,
+		end),
 	})
 	local mdb = ns:ModuleDB("location")
 	self.task = self.task or ns.Every(self, mdb.interval or 0.2, function() M:UpdateCoords() end, false)

@@ -554,6 +554,74 @@ step("Reputation bar: watched faction, colours per standing, a chosen faction, w
 	ns.UI.ClosePopup()
 end)
 
+step("Blizzard panels open from secure code (no taint on the player frame)", function()
+	local SC = ns.SecureClick
+	local microClicks = 0
+	CharacterMicroButton = CreateFrame("Button", "CharacterMicroButton")
+	CharacterMicroButton:SetScript("OnClick", function() microClicks = microClicks + 1 end)
+	-- Durability: the cover lays a secure "click the character micro button" over the plugin
+	local b = ns.Host.plugins.EverlookBar_Durability.button
+	b.__left, b.__bottom, b.__w, b.__h = 300, 1050, 60, 22
+	MOCK.toggled = nil
+	b:GetScript("OnEnter")(b)
+	local c = SC:Frame()
+	check(c and c:IsShown(), "cover shown over the plugin")
+	eq(SC:Owner(), b, "cover's owner")
+	eq(c:GetAttribute("type1"), "click", "secure click")
+	eq(c:GetAttribute("clickbutton1"), CharacterMicroButton, "clicks the micro button")
+	local p = c.__points[1]
+	eq(p[2], UIParent, "anchored to UIParent, never to the bar's button")
+	eq(p[4], 300, "same place as the button"); eq(c.__w, 60, "same width")
+	c.__scripts.PostClick(c, "LeftButton")
+	eq(MOCK.toggled, nil, "the left click is not run again from addon code")
+	c.__scripts.OnLeave(c)
+	check(not c:IsShown() and SC:Owner() == nil, "cover goes when the mouse leaves")
+	-- in combat no new cover, and the plain click does not open the panel from tainted code
+	MOCK.combat = true
+	b:GetScript("OnEnter")(b)
+	check(not c:IsShown(), "no cover made in combat")
+	b:GetScript("OnClick")(b, "LeftButton")
+	eq(MOCK.toggled, nil, "no ToggleCharacter in combat")
+	b:GetScript("OnLeave")(b)
+	MOCK.combat = false
+	-- without the micro button the old path still works out of combat
+	CharacterMicroButton = nil
+	b:GetScript("OnEnter")(b)
+	check(not c:IsShown(), "no cover without a micro button")
+	b:GetScript("OnClick")(b, "LeftButton")
+	eq(MOCK.toggled, "PaperDollFrame", "falls back to the panel function")
+	b:GetScript("OnLeave")(b)
+	CharacterMicroButton = _G.CharacterMicroButton or CreateFrame("Button", "CharacterMicroButton")
+	-- Reputation: a /click macro opens the character panel on the reputation tab; right-click stays the plugin's
+	CharacterFrame = CreateFrame("Frame", "CharacterFrame"); CharacterFrame:Hide()
+	CharacterFrameTab1 = CreateFrame("Button", "CharacterFrameTab1"); CharacterFrameTab1:SetText("Character")
+	CharacterFrameTab2 = CreateFrame("Button", "CharacterFrameTab2"); CharacterFrameTab2:SetText("Reputation")
+	local rb = ns.Host.plugins.EverlookBar_Reputation.button
+	rb:GetScript("OnEnter")(rb)
+	eq(c:GetAttribute("type1"), "macro", "reputation: macro")
+	eq(c:GetAttribute("macrotext1"), "/click CharacterMicroButton\n/click CharacterFrameTab2", "opens on the reputation tab")
+	c.__scripts.PostClick(c, "RightButton")
+	check(ns.UI.IsPopupShown(), "right-click still lists the factions")
+	ns.UI.ClosePopup()
+	c.__scripts.OnLeave(c)
+	CharacterFrame:Show()
+	rb:GetScript("OnEnter")(rb)
+	eq(c:GetAttribute("macrotext1"), "/click CharacterFrameTab2", "panel open on another tab: switch tab")
+	c.__scripts.OnLeave(c)
+	-- unlock mode: no cover (plugins are dragged)
+	ns.Unlock.active = true
+	rb:GetScript("OnEnter")(rb)
+	check(not c:IsShown(), "no cover in unlock mode")
+	rb:GetScript("OnLeave")(rb)
+	ns.Unlock.active = false
+	CharacterFrame, CharacterFrameTab1, CharacterFrameTab2, CharacterMicroButton = nil, nil, nil, nil
+	-- no built-in module calls a panel function outside a secure fallback
+	for _, f in ipairs({ "Durability", "Reputation", "Quests", "Location" }) do
+		local src = assert(io.open(ROOT .. "/Modules/" .. f .. ".lua")):read("*a")
+		check(src:find("ebarSecure", 1, true), f .. " has a secure click")
+	end
+end)
+
 step("Reputation bar: the faction list, grouped, flat or by header as room allows", function()
 	local R = ns.modules.reputation
 	local items = R.Items(100)

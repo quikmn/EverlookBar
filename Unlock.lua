@@ -240,6 +240,7 @@ function Unlock:Start()
 	if self.active then return end
 	if InCombatLockdown() then ns:Print("unlock after combat.") return end
 	self.active = true
+	if ns.SecureClick then ns.SecureClick:Uncover() end
 	makeGrid()
 	makePanel()
 	drawGrid()

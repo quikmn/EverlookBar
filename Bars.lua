@@ -237,6 +237,8 @@ end
 local function onEnter(self)
 	local rec = self.rec
 	self.hl:Show()
+	-- a plugin that opens a Blizzard panel gets the secure cover (SecureClick.lua) for its left click
+	if rec.obj.ebarSecure and ns.SecureClick and ns.SecureClick:Owner() ~= self then ns.SecureClick:Cover(self) end
 	if ns.Unlock and ns.Unlock.active then
 		GameTooltip:SetOwner(self, "ANCHOR_NONE")
 		Bars:AnchorTooltip(GameTooltip, self)

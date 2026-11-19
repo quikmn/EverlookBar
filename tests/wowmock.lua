@@ -155,6 +155,9 @@ function impl:SetVertexColor(r, g, b, a) self.__color = { r, g, b, a } end
 function impl:SetScale(s) self.__scale = s end
 function impl:GetScale() return self.__scale or 1 end
 function impl:SetMovable(on) self.__movable = on end
+function impl:SetAttribute(k, v) self.__attrs = self.__attrs or {}; self.__attrs[k] = v end
+function impl:GetAttribute(k) return self.__attrs and self.__attrs[k] end
+function impl:Click(button) self.__clicks = (self.__clicks or 0) + 1; local fn = self.__scripts.OnClick; if fn then fn(self, button or "LeftButton") end end
 function impl:IsMovable() return self.__movable or false end
 
 Widget.__index = function(self, key)

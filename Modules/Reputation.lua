@@ -292,7 +292,7 @@ end
 
 function M.Click(frame, mouse)
 	if mouse == "RightButton" then M.Menu(frame) return end
-	if ToggleCharacter then ToggleCharacter("ReputationFrame") end
+	ns.SecureClick.Fallback(function() if ToggleCharacter then ToggleCharacter("ReputationFrame") end end)()
 end
 
 local function db() return ns:ModuleDB("reputation") end
@@ -335,6 +335,8 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Rep", text = "",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
+		-- left click: the reputation panel through the game's own buttons (secure; SecureClick.lua)
+		ebarSecure = ns.SecureClick.CharacterPanelOn(REPUTATION or "Reputation"),
 		OnClick = function(frame, mouse) M.Click(frame, mouse) end,
 	})
 	ns.API.RegisterWidget(self.ldbName, widget)

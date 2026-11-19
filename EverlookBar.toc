@@ -16,6 +16,7 @@ Core.lua
 Layout.lua
 Host.lua
 Bars.lua
+SecureClick.lua
 API.lua
 Modules\XP.lua
 Modules\Reputation.lua

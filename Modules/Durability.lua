@@ -62,7 +62,11 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Durability", text = "", icon = "Interface\\Icons\\Trade_BlackSmithing",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
-		OnClick = function() if ToggleCharacter then ToggleCharacter("PaperDollFrame") end end,
+		-- the character panel opens through the game's own micro button (secure; SecureClick.lua)
+		ebarSecure = ns.SecureClick.ClickOf("CharacterMicroButton"),
+		OnClick = ns.SecureClick.Fallback(function(_, mouse)
+			if mouse == "LeftButton" and ToggleCharacter then ToggleCharacter("PaperDollFrame") end
+		end),
 	})
 	local function update() ns.Soon(M.Update, M) end
 	for _, e in ipairs({ "UPDATE_INVENTORY_DURABILITY", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_ENTERING_WORLD" }) do

@@ -64,7 +64,10 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Quests", text = "", icon = "Interface\\GossipFrame\\AvailableQuestIcon",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
-		OnClick = function() if ToggleQuestLog then ToggleQuestLog() end end,
+		ebarSecure = ns.SecureClick.ClickOf("QuestLogMicroButton"), -- secure when the game has the micro button
+		OnClick = ns.SecureClick.Fallback(function(_, mouse)
+			if mouse == "LeftButton" and ToggleQuestLog then ToggleQuestLog() end
+		end),
 	})
 	local function update() ns.Soon(M.Update, M) end
 	for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "PLAYER_ENTERING_WORLD" }) do
