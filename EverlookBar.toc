@@ -32,5 +32,6 @@ Modules\Calendar.lua
 Minimap.lua
 Unlock.lua
 PluginDrag.lua
+BagCooldowns.lua
 Options.lua
 Guide.lua

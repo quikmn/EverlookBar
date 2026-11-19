@@ -93,6 +93,7 @@ ns.DEFAULTS = {
 	grid = 16,             -- unlock-mode grid size
 	snap = true,
 	profiling = false,
+	hideBagGCD = true,     -- don't spin every bag slot with the global cooldown (WoW Forever reports it for all items)
 	minimap = {},          -- filled by Minimap.lua
 	seenLayout = false,    -- the default layout was placed once
 }

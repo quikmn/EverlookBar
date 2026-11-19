@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bag items no longer all spin with the global cooldown after every spell. WoW Forever reports the global cooldown for every item in your bags; Everlook Bar now clears that in Bagnon, Blizzard's bags and other bag addons, while real item cooldowns (potions, Hearthstone, trinkets) still show. Setting: Hide the global cooldown spin on bag items.
+
 ## v0.1.0 (2026-11-19)
 
 - Professions: the bar shows only your two main professions; a click (left or right) folds out every profession, and picking one opens it. Cooking, First Aid and Fishing can still go on the bar in the settings.

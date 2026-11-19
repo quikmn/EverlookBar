@@ -96,6 +96,10 @@ app:Setting({ key = "snap", type = "bool", label = "Snap to the grid in unlock m
 	get = function() return ns.db.snap end, set = function(v) ns.db.snap = v end })
 app:Setting({ key = "grid", type = "number", label = "Grid size (pixels)", min = 4, max = 64, default = ns.DEFAULTS.grid,
 	get = function() return ns.db.grid end, set = function(v) ns.db.grid = v end })
+app:Setting({ key = "bagGCD", type = "bool", label = "Hide the global cooldown spin on bag items", default = ns.DEFAULTS.hideBagGCD,
+	get = function() return ns.db.hideBagGCD end, set = function(v) ns.db.hideBagGCD = v end,
+	keywords = { "bagnon", "bags", "cooldown", "gcd", "spin", "swipe" },
+	desc = "WoW Forever shows the global cooldown on every item in your bags after each spell. Real item cooldowns (potions, Hearthstone, trinkets) still show." })
 app:Setting({ key = "profiling", type = "bool", label = "Measure Everlook Bar's own time per plugin (for /ebar perf)", default = ns.DEFAULTS.profiling,
 	get = function() return ns.db.profiling end, set = function(v) ns.db.profiling = v; ns.SetProfiling(v) end,
 	desc = "Times every call into a plugin. Costs a little itself; leave it off unless you are measuring." })
