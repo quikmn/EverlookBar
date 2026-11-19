@@ -246,8 +246,11 @@ local pendingSoon = {}
 local soonQueued = false
 local function runSoon()
 	soonQueued = false
-	for fn, owner in pairs(pendingSoon) do
-		pendingSoon[fn] = nil
+	-- swap in a fresh table first: the calls below may queue more (into the new one, for the next frame); changing the
+	-- table pairs() walks made "invalid key to 'next'"
+	local batch = pendingSoon
+	pendingSoon = {}
+	for fn, owner in pairs(batch) do
 		local o = owner ~= true and owner or nil
 		ns.SafeCall(o, fn, o) -- methods get their owner as self
 	end

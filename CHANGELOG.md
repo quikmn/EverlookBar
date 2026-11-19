@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed a Lua error, "invalid key to 'next'", that could show up while plugins updated.
 - Bag items no longer all spin with the global cooldown after every spell. WoW Forever reports the global cooldown for every item in your bags; Everlook Bar now clears that in Bagnon, Blizzard's bags and other bag addons, while real item cooldowns (potions, Hearthstone, trinkets) still show. Setting: Hide the global cooldown spin on bag items.
 
 ## v0.1.0 (2026-11-19)
