@@ -14,7 +14,7 @@ local special = {} -- reused rows: { name, free, total }
 local free, total = 0, 0
 
 local function bagCount()
-	return NUM_BAG_SLOTS or 4
+	return NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4 -- the reagent bag (bag 5) too
 end
 
 function M:Update()

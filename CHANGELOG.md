@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The bag counter also counts your reagent bag (WoW Forever's extra bag slot).
 
 - Minimap drawer: a minimap button that its own addon is dragging (Everlook Pets, for one) is no longer pulled back into the drawer while you drag it; it returns to its place when you let go.
 - Performance: addon memory is only measured while you hover the plugin, never on a timer (measuring walks every addon and can cause a small hitch). With "Show total addon memory" on, the bar shows the last reading.
