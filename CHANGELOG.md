@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Performance: addon memory is only measured while you hover the plugin, never on a timer (measuring walks every addon and can cause a small hitch). With "Show total addon memory" on, the bar shows the last reading.
 - Quieter chat: "another addon is managing the minimap" (and the notes about minimap buttons and coordinates from other addons) is said once, not on every login and /reload. The minimap page and `/ebar status` still say it. "Locked for combat" is said once instead of twice, and turning the minimap off no longer prints a line.
 - Professions: a left-click on a profession opens it again; right-click shows the list of all your professions. Herbalism, Skinning and others without a window still show the list.
 - Fixed Lua errors on your player frame ("attempt to compare a secret number value ... tainted by 'EverlookBar'") after opening the character or reputation panel from the bar. Durability, Reputation, Quest log and Location now open their panels through the game's own buttons, so nothing of Everlook Bar rubs off on Blizzard's frames. In combat, move the mouse onto the plugin before the fight starts, or open the panel with its key.

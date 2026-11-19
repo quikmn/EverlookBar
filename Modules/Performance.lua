@@ -13,6 +13,7 @@ local obj
 local last = { fps = -1, home = -1, world = -1, mem = -1 }
 local memTotal, memAt = nil, -1000
 local MEM_EVERY = 30 -- seconds; UpdateAddOnMemoryUsage walks every addon and is slow
+M.Memory = function() return memTotal end -- tests
 
 local function color(v, good, bad)
 	if v <= good then return "|cff62cf88" end
@@ -33,7 +34,8 @@ local function isLoaded(i)
 	return f and f(i)
 end
 
--- Total addon memory in KB, refreshed at most every MEM_EVERY seconds (never in combat).
+-- Total addon memory in KB, refreshed at most every MEM_EVERY seconds (never in combat). Only the tooltip calls this
+-- (while you hover the plugin): the bar's memory text shows the last reading and never scans on its own.
 local function memory(force)
 	local now = GetTime()
 	if (force or now - memAt >= MEM_EVERY) and not InCombatLockdown() and UpdateAddOnMemoryUsage then
@@ -59,7 +61,7 @@ function M:Tick()
 	local _, _, home, world = GetNetStats()
 	home, world = math.floor(ns.Num(home) or 0), math.floor(ns.Num(world) or 0)
 	local mem = -1
-	if mdb.memory then mem = math.floor((memory() or 0) / 1024 * 10) end -- tenths of MB
+	if mdb.memory and memTotal then mem = math.floor(memTotal / 1024 * 10) end -- tenths of MB, from the last hover
 	if fps == last.fps and home == last.home and world == last.world and mem == last.mem then return end
 	last.fps, last.home, last.world, last.mem = fps, home, world, mem
 	local parts, c = {}, mdb.colors

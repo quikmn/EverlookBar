@@ -141,7 +141,7 @@ modSetting("xp", "textInBar", { type = "bool", label = "Percentage in the middle
 modSetting("perf", "fps", { type = "bool", label = "Show FPS" })
 modSetting("perf", "latency", { type = "choice", label = "Latency on the bar", width = 260, choices = {
 	{ value = "world", text = "World (combat)" }, { value = "home", text = "Home (realm)" }, { value = "both", text = "Both (home/world)" }, { value = "none", text = "None" } } })
-modSetting("perf", "memory", { type = "bool", label = "Show total addon memory (read every 30 s)" })
+modSetting("perf", "memory", { type = "bool", label = "Show total addon memory (read when you hover the plugin)", keywords = { "memory", "ram", "mb" } })
 modSetting("perf", "colors", { type = "bool", label = "Colour good / poor values" })
 modSetting("location", "zone", { type = "bool", label = "Show the zone" })
 modSetting("location", "subzone", { type = "bool", label = "Show the subzone (Tarren Mill, Southshore Inn...)" })

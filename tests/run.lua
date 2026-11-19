@@ -308,8 +308,15 @@ step("Performance: compact text, rebuilt only on change, memory only on hover", 
 	local updates = MOCK.memUpdates or 0
 	for _ = 1, 30 do MOCK.time = MOCK.time + 1; ns.Tick() end
 	eq(MOCK.memUpdates or 0, updates, "no memory scans from the ticker")
+	-- memory on the bar: still no scans from the ticker; the bar shows what the last hover read
+	ns:ModuleDB("perf").memory = true
+	for _ = 1, 90 do MOCK.time = MOCK.time + 1; ns.Tick() end
+	eq(MOCK.memUpdates or 0, updates, "memory on the bar: no timed scans")
 	ns.modules.perf.Tooltip(GameTooltip)
 	check((MOCK.memUpdates or 0) == updates + 1, "hover reads memory")
+	MOCK.time = MOCK.time + 1; ns.Tick()
+	check(perf.text:find("MB", 1, true), "bar shows the hovered reading: " .. perf.text)
+	ns:ModuleDB("perf").memory = false
 	local all = table.concat(MOCK.tip, "\n")
 	check(all:find("Packet loss and jitter"), "honest about packet loss / jitter")
 	check(all:find("OtherAddon"), "per-addon CPU from the game's profiler")
