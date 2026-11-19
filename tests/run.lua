@@ -1070,10 +1070,15 @@ step("minimap: no moving in combat, says why; combat locks it", function()
 	mm:SetUnlocked(true, true)
 	local ov = mm.overlay
 	ov.__scripts.OnDragStart(ov, "LeftButton")
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	ns.Unlock:Start() -- unlock mode on as well: still one line
 	MOCK.Fire("PLAYER_REGEN_DISABLED")
+	check(not ns.Unlock.active, "unlock mode ended")
 	check(not mm.holder.__moving, "drag dropped when combat starts")
 	check(not mm.unlocked and not ov:IsShown(), "locked for combat")
-	check(logHas("locked for combat"), "told")
+	local n = 0
+	for _, l in ipairs(MOCK.log) do if l:find("locked for combat", 1, true) then n = n + 1 end end
+	eq(n, 1, "told once")
 	-- a drag started in combat does nothing
 	mm.unlocked = true; ov:Show(); MOCK.combat = true; MOCK.log = {}
 	ov.__scripts.OnDragStart(ov, "LeftButton")
@@ -1155,6 +1160,16 @@ step("minimap: steps aside for BasicMinimap", function()
 	MOCK.loaded.BasicMinimap = true
 	mm:DetectRivals()
 	eq(mm.stepAside, "BasicMinimap")
+	-- said in chat once ever (a /reload or the next login says nothing); /ebar status says it every time
+	MOCK.log = {}
+	mm:TellRivals(); mm:TellRivals()
+	local n = 0
+	for _, l in ipairs(MOCK.log) do if l:find("BasicMinimap is managing the minimap", 1, true) then n = n + 1 end end
+	eq(n, 1, "stepping aside told once")
+	check(ns.db.told["stepAside:BasicMinimap"], "remembered in the saved settings")
+	MOCK.log = {}
+	slash("status")
+	check(logHas("Minimap: BasicMinimap manages it"), "/ebar status names it")
 	MOCK.loaded.BasicMinimap = nil
 	mm:DetectRivals()
 	check(not mm.stepAside, "back")

@@ -96,6 +96,7 @@ ns.DEFAULTS = {
 	hideBagGCD = true,     -- don't spin every bag slot with the global cooldown (WoW Forever reports it for all items)
 	minimap = {},          -- filled by Minimap.lua
 	seenLayout = false,    -- the default layout was placed once
+	told = {},             -- notices said once ever in chat ("stepAside:SexyMap" = true); they stay in settings and /ebar status
 }
 
 ------------------------------------------------------------------------
@@ -275,7 +276,25 @@ function ns.AfterCombat(key, fn)
 	afterCombat[key] = fn
 	return false
 end
+-- Combat locks whatever is unlocked (bars, minimap): one chat line per combat, however many things locked.
+local toldCombatLock = false
+function ns.SayLockedForCombat()
+	if toldCombatLock then return end
+	toldCombatLock = true
+	ns:Print("locked for combat. Unlock again after combat.")
+end
+
+-- A notice for chat once ever (kept in the saved settings); returns true when it should be said now.
+function ns.TellOnce(key)
+	if not ns.db then return false end
+	ns.db.told = ns.db.told or {}
+	if ns.db.told[key] then return false end
+	ns.db.told[key] = true
+	return true
+end
+
 ns.On("PLAYER_REGEN_ENABLED", ns, function()
+	toldCombatLock = false
 	for key, fn in pairs(afterCombat) do
 		afterCombat[key] = nil
 		ns.SafeCall(ns, fn)

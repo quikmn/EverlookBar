@@ -368,8 +368,10 @@ app:Reset("minimap", "the minimap's place and size", function() mm:ResetPosition
 app:StatusLines(function()
 	local u, n = O:Usage(), 0
 	for _ in pairs(ns.Host.plugins) do n = n + 1 end
-	return { #ns.db.bars .. " bar(s), " .. n .. " plugin(s); " .. (u.memKB and string.format("%.0f KB", u.memKB) or "memory ?")
+	local lines = { #ns.db.bars .. " bar(s), " .. n .. " plugin(s); " .. (u.memKB and string.format("%.0f KB", u.memKB) or "memory ?")
 		.. ". " .. ns.SLASH .. " perf for CPU." }
+	for _, l in ipairs(mm:StatusLines()) do lines[#lines + 1] = l end
+	return lines
 end)
 
 -- "bar2.edge" = bar.edge of bar 2: from chat ("/ebar bar2.edge left", "/ebar set bar2.edge left ; bar3.shown off") and

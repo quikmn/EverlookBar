@@ -309,15 +309,26 @@ function M:ForeignCoords()
 	return out
 end
 
--- Tell once per session, in chat, about another addon's coordinates.
+-- Tell once ever, in chat, about another addon's coordinates (after that: /ebar status and /ebar minimap).
 function M:TellForeignCoords()
-	if self.toldCoords then return end
-	local list = self:ForeignCoords()
-	if #list == 0 then return end
-	self.toldCoords = true
-	for _, c in ipairs(list) do
-		ns:Print("coordinates near the minimap come from |cffffd25a" .. c.addon .. "|r, which " .. c.fix)
+	for _, c in ipairs(self:ForeignCoords()) do
+		if ns.TellOnce("coords:" .. c.addon) then
+			ns:Print("coordinates near the minimap come from |cffffd25a" .. c.addon .. "|r, which " .. c.fix)
+		end
 	end
+end
+
+-- Lines for /ebar status: who else manages the minimap, its buttons or coordinates.
+function M:StatusLines()
+	local out = {}
+	if not self.running then return out end
+	if self.stepAside then
+		out[#out + 1] = "Minimap: " .. self.stepAside .. " manages it, so " .. ns.NAME .. " leaves it alone (disable "
+			.. self.stepAside .. " and /reload to use ours)."
+	end
+	if self.buttonRival then out[#out + 1] = "Minimap buttons: " .. self.buttonRival .. " collects them; the drawer is off." end
+	for _, c in ipairs(self:ForeignCoords()) do out[#out + 1] = "Coordinates: " .. c.addon .. " " .. c.fix end
+	return out
 end
 
 -- The loaded addon a frame most likely belongs to, from its name.
@@ -1108,19 +1119,24 @@ function M:ApplyAll()
 	end)
 end
 
+-- Another addon manages the minimap or its buttons: said once ever per addon; after that the minimap page and
+-- /ebar status say it.
+function M:TellRivals()
+	if M.stepAside and ns.TellOnce("stepAside:" .. M.stepAside) then
+		ns:Print(M.stepAside .. " is managing the minimap, so " .. ns.NAME .. " leaves the minimap frame alone. "
+			.. "To use " .. ns.NAME .. "'s clean minimap instead, disable " .. M.stepAside .. " (Esc > AddOns) and /reload. "
+			.. "This is said once; " .. ns.SLASH .. " status shows it again.")
+	end
+	if M.buttonRival and ns.TellOnce("buttons:" .. M.buttonRival) then
+		ns:Print(M.buttonRival .. " already collects minimap buttons, so " .. ns.NAME .. " leaves them to it.")
+	end
+end
+
 function M:Enable()
 	if not Minimap then return end
 	local function start()
 		M:DetectRivals()
-		if M.stepAside and not M.toldStepAside then
-			M.toldStepAside = true
-			ns:Print(M.stepAside .. " is managing the minimap, so " .. ns.NAME .. " leaves the minimap frame alone. "
-				.. "To use " .. ns.NAME .. "'s clean minimap instead, disable " .. M.stepAside .. " (Esc > AddOns) and /reload.")
-		end
-		if M.buttonRival and not M.toldButtons then
-			M.toldButtons = true
-			ns:Print(M.buttonRival .. " already collects minimap buttons, so " .. ns.NAME .. " leaves them to it.")
-		end
+		M:TellRivals()
 		M:ApplyAll()
 		-- other addons' coordinate features: say once which setting turns them off
 		C_Timer.After(5, function() if M.running then M:TellForeignCoords() end end)
@@ -1135,7 +1151,7 @@ function M:Enable()
 	ns.On("PLAYER_REGEN_DISABLED", self, function()
 		if M.unlocked then
 			M:SetUnlocked(false, true)
-			ns:Print("minimap locked for combat. Unlock it again after combat.")
+			ns.SayLockedForCombat()
 		end
 	end)
 	-- buttons made late (addons that wait for login or load on demand)
@@ -1159,7 +1175,7 @@ function M:Disable()
 	self:ReleaseButtons()
 	if drawerToggle then drawerToggle:Hide() end
 	if drawer then drawer:Hide() end
-	ns:Print("the minimap goes back to the game's own place after /reload.")
+	-- no chat line: the minimap page says it ("Off. Turning it off fully gives the minimap back after /reload.")
 end
 
 -- The settings that move or reshape the minimap changed.

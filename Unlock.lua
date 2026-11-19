@@ -272,4 +272,4 @@ end
 
 function Unlock:Toggle() if self.active then self:Stop() else self:Start() end end
 
-ns.On("PLAYER_REGEN_DISABLED", Unlock, function() if Unlock.active then Unlock:Stop(); ns:Print("locked for combat.") end end)
+ns.On("PLAYER_REGEN_DISABLED", Unlock, function() if Unlock.active then Unlock:Stop(); ns.SayLockedForCombat() end end)
