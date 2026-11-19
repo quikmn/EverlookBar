@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Minimap drawer: a minimap button that its own addon is dragging (Everlook Pets, for one) is no longer pulled back into the drawer while you drag it; it returns to its place when you let go.
 - Performance: addon memory is only measured while you hover the plugin, never on a timer (measuring walks every addon and can cause a small hitch). With "Show total addon memory" on, the bar shows the last reading.
 - Quieter chat: "another addon is managing the minimap" (and the notes about minimap buttons and coordinates from other addons) is said once, not on every login and /reload. The minimap page and `/ebar status` still say it. "Locked for combat" is said once instead of twice, and turning the minimap off no longer prints a line.
 - Professions: a left-click on a profession opens it again; right-click shows the list of all your professions. Herbalism, Skinning and others without a window still show the list.

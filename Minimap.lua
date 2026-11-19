@@ -797,6 +797,18 @@ M.HasIcon = hasIcon
 
 local CELL, PAD, TOP = 34, 8, 4
 
+-- Buttons being dragged right now (by their own addon): never re-anchored or collected mid-drag.
+local dragging = setmetatable({}, { __mode = "k" })
+local function isDragging(b)
+	if dragging[b] then return true end
+	if b.IsDragging then
+		local ok, d = pcall(b.IsDragging, b)
+		if ok and d == true then return true end
+	end
+	return false
+end
+M.IsDragging = isDragging
+
 local function relayoutDrawer()
 	if not drawer then return end
 	local cols = math.max(1, math.min(12, tonumber(mdb().drawerCols) or 6))
@@ -807,13 +819,13 @@ local function relayoutDrawer()
 		local info = held[b]
 		if info and not info.hiddenByOwner and b:GetParent() == drawer then
 			local col, row = n % cols, math.floor(n / cols)
-			pcall(function()
+			if not isDragging(b) then pcall(function()
 				b:ClearAllPoints()
 				b:SetPoint("CENTER", drawer, "TOPLEFT", PAD + col * CELL + CELL / 2, -PAD - TOP - row * CELL - CELL / 2)
 				b:SetFrameStrata(drawer:GetFrameStrata())
 				b:SetFrameLevel(level)
 				b:SetAlpha(1)
-			end)
+			end) end -- a button being dragged keeps its cell but is not moved
 			n = n + 1
 		end
 	end
@@ -930,6 +942,7 @@ end
 
 local function hold(b)
 	if held[b] or not b then return end
+	if isDragging(b) then return end -- its addon is moving it: try again on the next scan
 	if b.IsProtected and b:IsProtected() then skip(b, "protected") return end
 	if not hasIcon(b) then skip(b, "no icon of its own") return end -- nothing to show: leave it where it is
 	local info = {
@@ -970,9 +983,14 @@ local function hold(b)
 	if not hooked[b] then
 		hooked[b] = true
 		hooksecurefunc(b, "SetPoint", function(o)
-			if placing or not held[o] then return end
+			if placing or not held[o] or isDragging(o) then return end
 			ns.Soon(relayoutDrawer)
 		end)
+		-- its own addon drags it (EverlookPets' button around the minimap): hands off until it is dropped
+		if b.HookScript and b.GetScript then
+			pcall(b.HookScript, b, "OnDragStart", function(o) dragging[o] = true end)
+			pcall(b.HookScript, b, "OnDragStop", function(o) dragging[o] = nil; if held[o] then ns.Soon(relayoutDrawer) end end)
+		end
 		-- LibDBIcon's fade timer and its minimap hooks set alpha; in the drawer it stays visible
 		hooksecurefunc(b, "SetAlpha", function(o, a)
 			if placing or not held[o] or o:GetParent() ~= drawer then return end
