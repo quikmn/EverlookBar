@@ -9,7 +9,7 @@ local UI = ns.UI
 
 local M = ns:NewModule({
 	id = "professions", title = "Professions", ldbName = ns.PREFIX .. "_Professions",
-	desc = "Your profession skills (Mining 187, Cook 225); click one to open its window.",
+	desc = "Your profession skills (Mining 187, Cook 225); click one to open its window, right-click for all of them.",
 	defaults = { primary = true, cooking = false, firstAid = false, fishing = false, riding = false, showMax = false,
 		names = "short", icons = true, markCap = true, capColor = { 1.00, 0.55, 0.25, 1 } },
 	place = { group = "left", order = 2 },
@@ -200,8 +200,13 @@ function M.MenuPick(v)
 	M.Open(M.Row(v))
 end
 
--- A click, left or right: folds out every profession (the bar shows only your two main ones); pick one to open it.
+-- Left-click a profession: open (or close) its window. Right-click, or a profession with no window, or the button
+-- around the pieces: every profession in a list (the bar shows only your two main ones); pick one to open it.
 function M.Click(frame, mouse, id)
+	if mouse ~= "RightButton" and id then
+		local r = M.Row(id)
+		if r and r.window then M.Open(r) return end
+	end
 	M.Menu(frame)
 end
 
@@ -365,7 +370,7 @@ function M.Tooltip(tip)
 		ns.TipHint(tip, "At cap: a trainer teaches the next rank, if there is one.")
 	end
 	tip:AddLine(" ")
-	ns.TipHint(tip, "Click: every profession; pick one to open it.")
+	ns.TipHint(tip, "Click a profession: open it. Right-click: every profession.")
 end
 
 function M:Available()

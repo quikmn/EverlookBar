@@ -425,7 +425,7 @@ step("Professions: skills on the bar, the cap coloured, weapon skills left out",
 	check(tip:find("Fishing |cff8d94a3(no window)|r | 1/75 (+25)", 1, true), "tooltip: gear bonus")
 	check(tip:find("Riding", 1, true), "tooltip lists every profession")
 	check(tip:find("At cap: a trainer", 1, true), "cap hint, no invented skill level")
-	check(tip:find("Click: every profession", 1, true), "click hint")
+	check(tip:find("Click a profession: open it. Right-click: every profession.", 1, true), "click hint")
 end)
 
 step("Professions: a click opens that profession; no window, nothing; right-click lists them", function()
@@ -433,12 +433,19 @@ step("Professions: a click opens that profession; no window, nothing; right-clic
 	local b = ns.Host.plugins.EverlookBar_Professions.button
 	MOCK.opened = {}
 	local mining, herb, cook = P.pieces[2], P.pieces[1], P.pieces[3]
-	-- any click, left or right, folds out every profession; picking one opens it
+	-- left-click a profession: it opens, no list
 	mining:GetScript("OnClick")(mining, "LeftButton")
-	check(ns.UI.IsPopupShown(), "left-click folds out the list")
-	eq(#MOCK.opened, 0, "nothing opened by the click itself")
-	P.MenuPick(186)
-	eq(MOCK.opened[1], 186, "picking Mining opens Mining")
+	eq(MOCK.opened[1], 186, "left-click on Mining opens Mining")
+	check(not ns.UI.IsPopupShown(), "no list on a left-click")
+	-- left-click on one without a window (Herbalism): the list instead
+	herb:GetScript("OnClick")(herb, "LeftButton")
+	check(ns.UI.IsPopupShown(), "no window: the list")
+	eq(#MOCK.opened, 1, "nothing opened for Herbalism")
+	ns.UI.ClosePopup()
+	-- the button around the pieces (no profession under the mouse): the list
+	b:GetScript("OnClick")(b, "LeftButton")
+	check(ns.UI.IsPopupShown(), "the plugin's own click: the list")
+	ns.UI.ClosePopup()
 	P.MenuPick(185)
 	eq(MOCK.opened[2], 185, "picking Cooking opens Cooking")
 	-- the open one again: closed
