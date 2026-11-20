@@ -4,7 +4,7 @@
 ## Author: quikmn
 ## Version: 0.2.0
 ## SavedVariables: EverlookBarDB
-## IconTexture: Interface\Icons\INV_Misc_Spyglass_03
+## IconTexture: Interface\AddOns\EverlookBar\Media\icon
 ## X-License: GPL-3.0
 ## X-Embeds: LibStub, CallbackHandler-1.0, LibDataBroker-1.1, EverlookUI
 
