@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Quest log: a click opens your quest log again. When the game's own quest log button doesn't open it, the bar opens it itself.
 - The bag counter also counts your reagent bag (WoW Forever's extra bag slot).
 
 - Minimap drawer: a minimap button that its own addon is dragging (Everlook Pets, for one) is no longer pulled back into the drawer while you drag it; it returns to its place when you let go.

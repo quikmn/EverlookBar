@@ -65,8 +65,18 @@ function M:Enable()
 		type = "data source", label = "Quests", text = "", icon = "Interface\\GossipFrame\\AvailableQuestIcon",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
 		ebarSecure = ns.SecureClick.ClickOf("QuestLogMicroButton"), -- secure when the game has the micro button
+		-- whether the quest log is open (the classic window, or the map's quest list): when the micro button changed
+		-- nothing, the click below opens it itself (SecureClick.lua)
+		ebarOpened = function()
+			if QuestLogFrame and QuestLogFrame:IsShown() then return true end
+			return (WorldMapFrame and WorldMapFrame:IsShown() and QuestMapFrame and QuestMapFrame:IsShown()) and true or false
+		end,
 		OnClick = ns.SecureClick.Fallback(function(_, mouse)
-			if mouse == "LeftButton" and ToggleQuestLog then ToggleQuestLog() end
+			if mouse ~= "LeftButton" then return end
+			if ToggleQuestLog then ToggleQuestLog(); return end
+			if QuestLogFrame then
+				if QuestLogFrame:IsShown() then HideUIPanel(QuestLogFrame) else ShowUIPanel(QuestLogFrame) end
+			end
 		end),
 	})
 	local function update() ns.Soon(M.Update, M) end

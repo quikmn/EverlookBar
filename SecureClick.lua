@@ -102,12 +102,37 @@ local function make()
 		if fn then fn(b) end
 		S:Uncover()
 	end)
+	-- A plugin may say whether its panel is open (ebarOpened). Then the state before the click is noted, and if the
+	-- game's button changed nothing (a client whose micro button doesn't open it), the plugin's own click runs.
+	local before
+	cover:SetScript("PreClick", function()
+		local b = owner
+		local obj = b and b.rec and b.rec.obj
+		before = nil
+		if obj and type(obj.ebarOpened) == "function" then
+			local ok, open = pcall(obj.ebarOpened)
+			if ok then before = open and true or false end
+		end
+	end)
 	-- Runs after the secure click. The left button was handled securely; the others go to the plugin.
 	cover:SetScript("PostClick", function(self, mouse)
 		local b = owner
 		if not b then return end
 		hideTip(b)
-		if mouse == "LeftButton" and self:GetAttribute("type1") then return end
+		if mouse == "LeftButton" and self:GetAttribute("type1") then
+			local obj = b.rec and b.rec.obj
+			local was = before
+			if was ~= nil and obj and type(obj.ebarOpened) == "function" then
+				C_Timer.After(0.15, function()
+					local ok, open = pcall(obj.ebarOpened)
+					if ok and (open and true or false) == was and not InCombatLockdown() then
+						local fn = b:GetScript("OnClick")
+						if fn then fn(b, "LeftButton") end
+					end
+				end)
+			end
+			return
+		end
 		local fn = b:GetScript("OnClick")
 		if fn then fn(b, mouse) end
 	end)
