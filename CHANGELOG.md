@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 (2026-11-20)
 - Settings window: switches, buttons and sliders use a softer shade of the accent colour, an on switch has a dark knob so it stands out, and boxes have cleaner rounded edges.
 - Quest log: a click opens your quest log again. When the game's own quest log button doesn't open it, the bar opens it itself.
 - The bag counter also counts your reagent bag (WoW Forever's extra bag slot).

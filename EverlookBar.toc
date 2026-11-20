@@ -2,7 +2,7 @@
 ## Title: Everlook Bar
 ## Notes: Info bars for LibDataBroker plugins (XP, reputation, professions, performance, location, durability, mail, bags, quests, gold, clock, calendar) and a clean minimap.
 ## Author: quikmn
-## Version: 0.1.0
+## Version: 0.2.0
 ## SavedVariables: EverlookBarDB
 ## IconTexture: Interface\Icons\INV_Misc_Spyglass_03
 ## X-License: GPL-3.0
