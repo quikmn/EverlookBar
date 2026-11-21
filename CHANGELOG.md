@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 (2026-11-21)
 - The pieces around the minimap are reworked. Each one (zone name, tracking button, mail icon, calendar button, day and night dial, clock, coordinates, zoom buttons, addon menu button) now has a plain on/off switch with a small picture and a Reset button, in one short list on the Minimap page. Switching one works at once, also in combat; if the game locks a piece in combat, it changes when combat ends and the page says so.
 - A piece that is on now sits on the minimap's edge, above the map, and moves and grows with the minimap. Before, "Show" left it in the top-right corner of the screen (under a top bar, and far from a minimap you had moved), and "Move" put it in the middle of the map, partly underneath it.
 - Moving is one button: **Unlock to move**, on the Minimap page and at the bottom left of the settings window (`/ebar unlock` still works). It covers bars, plugins, the minimap and its pieces together. Every piece gets a box with its name; drag it along the minimap's edge. It snaps to the corners and the middle of the sides on a square minimap and every 45 degrees on a round one; hold Shift to put it anywhere; right-click a box to put that piece back. Before, the page's "Unlock minimap" switch only unlocked the minimap itself, so the pieces could not be moved from there.
