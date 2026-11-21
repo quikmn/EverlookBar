@@ -30,6 +30,7 @@ Modules\Professions.lua
 Modules\Gold.lua
 Modules\Clock.lua
 Modules\Calendar.lua
+Modules\Tracking.lua
 Minimap.lua
 Unlock.lua
 PluginDrag.lua

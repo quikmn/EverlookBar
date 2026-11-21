@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- New plugin: Tracking. It shows what your minimap tracks (Herbs, Mailbox) and a click opens a menu of everything you can track, find spells and townsfolk apart, each with a tick box: Mailbox, trainers, Flight Master, Find Herbs, Find Minerals and the rest. Right-click to untrack all. In combat the menu only shows; change it after combat. With the minimap's tracking button hidden, this is the way to change tracking. New characters get it on the bar; if you already had a layout, it waits on the Plugins page (put it on with `/ebar place tracking 1 right`).
 - The addon is now called EverlookDB Bar (was Everlook Bar), like the rest of the EverlookDB family. Settings, commands and the folder stay the same.
 
 ## v0.2.2 (2026-11-21)

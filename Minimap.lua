@@ -46,6 +46,7 @@ M.ELEMENTS = {
 		match = { "Coord" } },
 	{ key = "calendar", label = "Calendar button", default = "hide", paths = { "MinimapCluster.Calendar", "MiniMapCalendar" }, match = { "Calendar" } },
 	{ key = "tracking", label = "Tracking", default = "hide",
+		desc = "The minimap's tracking button (Mailbox, trainers, Find Herbs...). Hidden or moved, the Tracking plugin on a bar does the same: click it to change what the minimap tracks.",
 		paths = { "MiniMapTrackingFrame", "MiniMapTracking", "MiniMapTrackingButton", "MinimapCluster.Tracking", "MinimapCluster.TrackingFrame" } },
 	{ key = "mail", label = "Mail icon", default = "hide",
 		paths = { "MiniMapMailFrame", "MinimapCluster.IndicatorFrame.MailFrame", "MinimapCluster.MailFrame" } },

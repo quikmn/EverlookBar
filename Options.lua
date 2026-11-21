@@ -127,7 +127,7 @@ local function modSetting(id, field, def)
 end
 
 for _, m in ipairs(ns.moduleOrder) do
-	app:Setting({ key = m.id .. ".enabled", type = "bool", label = m.title, desc = m.desc,
+	app:Setting({ key = m.id .. ".enabled", type = "bool", label = m.title, desc = m.desc, keywords = m.keywords,
 		chatLabel = m.title .. " module", default = m.default ~= false,
 		get = function() return ns:ModuleDB(m.id).enabled end,
 		set = function(v) ns:SetModuleEnabled(m, v, true) end,
@@ -178,6 +178,11 @@ modSetting("professions", "showMax", { type = "bool", label = "Show the cap too 
 modSetting("professions", "markCap", { type = "bool", label = "Colour a skill at its cap (time for the next trainer rank)",
 	keywords = { "profession", "trainer", "rank", "cap", "max", "colour", "color", "skill" } })
 modSetting("professions", "capColor", { type = "color", label = "Colour of a skill at its cap", keywords = { "profession", "trainer", "rank", "cap", "colour", "color" } })
+local TRACK_WORDS = ns.modules.tracking.keywords
+modSetting("tracking", "show", { type = "choice", label = "Tracking text on the bar", width = 300, keywords = TRACK_WORDS, choices = {
+	{ value = "all", text = "What's tracked (Mailbox, Herbs +1)" }, { value = "first", text = "The first one only (Herbs +2)" },
+	{ value = "icon", text = "Only the icon" } },
+	desc = "The icon is always the first tracked type's. Click the plugin to change what the minimap tracks." })
 local REP_WORDS = { "reputation", "rep", "faction", "standing", "exalted", "honored" }
 local rep = ns.modules.reputation
 modSetting("reputation", "faction", { type = "choice", label = "Faction to track", width = 300, choices = rep.choices,
@@ -238,6 +243,7 @@ mmSetting("drawerCols", { type = "number", label = "Buttons per row in the drawe
 local MODES = { { value = "show", text = "Show (game's place)" }, { value = "hide", text = "Hide" }, { value = "move", text = "Move (unlock mode)" } }
 for _, e in ipairs(mm.ELEMENTS) do
 	app:Setting({ key = "minimap." .. e.key, type = "choice", label = e.label, choices = MODES, width = 220, default = e.default or "show",
+		desc = e.desc,
 		get = function() return mm:Mode(e.key) end,
 		set = function(v) ns:ModuleDB("minimap").elements[e.key] = v end,
 		disabled = function() return not mm.running or mm.stepAside ~= nil end,
@@ -663,6 +669,8 @@ app:Section("modules", "Built-in", function(stack)
 	app:Widget(stack, "professions.fishing"); app:Widget(stack, "professions.riding")
 	app:Widget(stack, "professions.names"); app:Widget(stack, "professions.icons"); app:Widget(stack, "professions.showmax")
 	app:Widget(stack, "professions.markcap"); app:Widget(stack, "professions.capcolor")
+	UI.Header(stack, "Tracking", "What the minimap tracks. Click the plugin to tick Mailbox, Find Herbs and the rest; right-click to untrack all.")
+	app:Widget(stack, "tracking.show")
 	UI.Header(stack, "Performance")
 	app:Widget(stack, "perf.fps"); app:Widget(stack, "perf.latency"); app:Widget(stack, "perf.memory"); app:Widget(stack, "perf.colors")
 	UI.Header(stack, "Location")

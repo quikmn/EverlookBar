@@ -1717,6 +1717,213 @@ step("professions: a skill line with no cap shows its rank alone", function()
 end)
 
 ------------------------------------------------------------------------
+-- Tracking
+------------------------------------------------------------------------
+local TR = ns.modules.tracking
+local function trackDB() return ns:ModuleDB("tracking") end
+local function trackObj() return LibStub("LibDataBroker-1.1"):GetDataObjectByName("EverlookBar_Tracking") end
+
+step("tracking: on by default, placed for a new profile, uses C_Minimap", function()
+	check(TR.running, "tracking module running")
+	eq(TR.Api(), "C_Minimap", "api")
+	check(ns.db.placement.EverlookBar_Tracking ~= nil, "placed on a new profile")
+	eq(ns.db.placement.EverlookBar_Tracking.group, "right", "group")
+end)
+
+step("tracking: menu groups follow the game (find and track, townsfolk, other)", function()
+	MOCK.ResetTracking()
+	TR:Update()
+	local m = TR.MenuModel(false)
+	local titles, order = {}, {}
+	for _, r in ipairs(m) do
+		if r.title then titles[#titles + 1] = r.text elseif r.index then order[#order + 1] = r.name end
+		check(not r.disabled, "nothing disabled out of combat")
+	end
+	eq(table.concat(titles, "|"), "Find and track|Townsfolk|Other", "groups")
+	eq(table.concat(order, "|"), "Find Herbs|Find Minerals|Auctioneer|Mailbox|Repair|Points of Interest", "rows in the game's order")
+	eq(m[3].checked, true, "Find Minerals checked")
+	eq(m[2].checked, false, "Find Herbs unchecked")
+	eq(m[3].icon, 136025, "icon from the game")
+	-- a group with nothing in it has no heading
+	table.remove(MOCK.tracking, 6)
+	TR:Update()
+	titles = {}
+	for _, r in ipairs(TR.MenuModel(false)) do if r.title then titles[#titles + 1] = r.text end end
+	eq(table.concat(titles, "|"), "Find and track|Townsfolk", "empty group left out")
+	MOCK.ResetTracking()
+	TR:Update()
+end)
+
+step("tracking: text shows what's tracked; first only; icon only", function()
+	MOCK.ResetTracking()
+	local db = trackDB()
+	db.show = "all"
+	TR:Update()
+	local obj = trackObj()
+	eq(obj.text, "Minerals, Mailbox", "all")
+	eq(obj.icon, 136025, "icon of the first active one")
+	MOCK.tracking[5].active = true
+	TR:Update()
+	eq(obj.text, "Minerals, Mailbox |cff8d94a3+1|r", "more than two")
+	db.show = "first"
+	TR:Update()
+	eq(obj.text, "Minerals |cff8d94a3+2|r", "first only")
+	db.show = "icon"
+	TR:Update()
+	eq(obj.text, "", "icon only")
+	for _, t in ipairs(MOCK.tracking) do t.active = false end
+	db.show = "all"
+	TR:Update()
+	eq(obj.text, "|cff8d94a3Not tracking|r", "nothing tracked")
+	check(tostring(obj.icon):find("None"), "the game's 'none' icon")
+	MOCK.ResetTracking()
+	TR:Update()
+end)
+
+step("tracking: a click toggles exactly the type clicked", function()
+	MOCK.ResetTracking()
+	TR:Update()
+	check(TR.Toggle(4, "Mailbox"), "mailbox off")
+	eq(MOCK.trackingSet[1], "4=false", "SetTracking(4, false)")
+	check(TR.Toggle(1, "Find Herbs"), "herbs on")
+	eq(MOCK.trackingSet[2], "1=true", "SetTracking(1, true)")
+	eq(#MOCK.trackingSet, 2, "nothing else set or cast")
+	eq(TR.active[1].name, "Find Herbs", "active list refreshed")
+	-- the list changed under the menu: nothing is set
+	local ok, why = TR.Toggle(1, "Find Minerals")
+	check(not ok and why == "changed", "stale row refused")
+	eq(#MOCK.trackingSet, 2, "nothing set for a stale row")
+	-- the event refreshes the plugin
+	MOCK.tracking[3].active = true
+	MOCK.Fire("MINIMAP_UPDATE_TRACKING")
+	flush()
+	local names = {}
+	for _, r in ipairs(TR.active) do names[#names + 1] = r.short end
+	eq(table.concat(names, ","), "Herbs,Auctioneer", "after MINIMAP_UPDATE_TRACKING")
+	MOCK.ResetTracking()
+	TR:Update()
+end)
+
+step("tracking: in combat the menu is read-only and nothing is set", function()
+	MOCK.ResetTracking()
+	TR:Update()
+	MOCK.combat = true
+	local m = TR.MenuModel(true)
+	for _, r in ipairs(m) do if r.index then check(r.disabled, r.name .. " disabled in combat") end end
+	check(m[#m].note and m[#m].text:find("after combat"), "after-combat note")
+	local ok, why = TR.Toggle(1, "Find Herbs")
+	check(not ok and why == "combat", "toggle refused in combat")
+	ok, why = TR.ClearAll()
+	check(not ok and why == "combat", "untrack all refused in combat")
+	eq(#MOCK.trackingSet, 0, "nothing set in combat")
+	-- the open menu redraws read-only, and a click on a row does nothing
+	local button = ns.Host.plugins.EverlookBar_Tracking.button
+	TR.OpenMenu(button)
+	check(TR.menu:IsShown(), "menu opens in combat")
+	local row = TR.menu.rows[2]
+	check(row.item and row.item.disabled, "row disabled")
+	row:GetScript("OnClick")(row, "LeftButton")
+	eq(#MOCK.trackingSet, 0, "a click in combat sets nothing")
+	MOCK.combat = false
+	TR.DrawMenu()
+	check(not TR.menu.rows[2].item.disabled, "enabled again after combat")
+	TR.menu.rows[2]:GetScript("OnClick")(TR.menu.rows[2], "LeftButton")
+	eq(MOCK.trackingSet[1], "1=true", "click after combat sets it")
+	TR.OpenMenu(button) -- a second click on the plugin closes it
+	check(not TR.menu:IsShown(), "second click closes the menu")
+	MOCK.ResetTracking()
+	TR:Update()
+end)
+
+step("tracking: right-click offers untrack all only when the game has it", function()
+	MOCK.ResetTracking()
+	TR:Update()
+	TR.RightMenu(nil)
+	local has = false
+	for _, it in ipairs(TR.rightItems) do if it.value == "clear" then has = true end end
+	check(has, "untrack all offered")
+	TR.RightPick("clear")
+	eq(MOCK.trackingSet[1], "clear", "ClearAllTracking called")
+	eq(#TR.active, 0, "nothing active")
+	MOCK.ResetTracking()
+	local clear = C_Minimap.ClearAllTracking
+	C_Minimap.ClearAllTracking = nil
+	TR:Update()
+	TR.RightMenu(nil)
+	for _, it in ipairs(TR.rightItems) do check(it.value ~= "clear", "no untrack all without the API") end
+	C_Minimap.ClearAllTracking = clear
+	ns.UI.ClosePopup()
+end)
+
+step("tracking: the older global API, and no API at all", function()
+	local C = C_Minimap
+	C_Minimap = nil
+	local set = {}
+	GetNumTrackingTypes = function() return 2 end
+	GetTrackingInfo = function(i)
+		if i == 1 then return "Find Treasure", 135725, true, "spell", -1 end
+		return "Flight Master", 136456, false, "other", 2
+	end
+	SetTracking = function(i, on) set[#set + 1] = i .. "=" .. tostring(on) end
+	eq(TR.Api(), "global", "global api")
+	TR:Update()
+	eq(#TR.list, 2, "two types")
+	eq(TR.list[2].group, "town", "subType 2 is townsfolk")
+	eq(TR.Text("all"), "Treasure", "short name")
+	check(TR.Toggle(2, "Flight Master"), "toggle through the global API")
+	eq(set[1], "2=true", "global SetTracking")
+	GetNumTrackingTypes, GetTrackingInfo, SetTracking = nil, nil, nil
+	eq(TR.Api(), nil, "no api")
+	check(not TR:Available(), "not available without an API")
+	TR:Update()
+	eq(#TR.list, 0, "empty list")
+	local m = TR.MenuModel(false)
+	check(m[1].note and m[1].text:find("no tracking API"), "menu says so")
+	local ok, why = TR.Toggle(1)
+	check(not ok and why == "api", "toggle without API")
+	C_Minimap = C
+	MOCK.ResetTracking()
+	TR:Update()
+end)
+
+step("tracking: secret values are never read", function()
+	MOCK.tracking[1] = { name = S("Find Herbs"), texture = S(1), active = S(true), type = "spell", subType = 1 }
+	MOCK.tracking[2] = S({})
+	TR:Update()
+	for _, r in ipairs(TR.list) do check(r.name ~= "Find Herbs" and r.name ~= "Find Minerals", "secret rows skipped") end
+	MOCK.ResetTracking()
+	TR:Update()
+end)
+
+step("tracking: the setting works from chat; the minimap setting points to the plugin", function()
+	local def = ns.app:GetSetting("tracking.show")
+	check(def and def.type == "choice", "tracking.show setting")
+	slash("tracking.show first")
+	eq(trackDB().show, "first", "set from chat")
+	eq(trackObj().text, "Minerals |cff8d94a3+1|r", "text follows the setting")
+	slash("tracking.show all")
+	local mmDef = ns.app:GetSetting("minimap.tracking")
+	check(mmDef.desc and mmDef.desc:find("Tracking plugin"), "minimap tracking setting mentions the plugin")
+	local found = false
+	for _, w in ipairs(def.keywords or {}) do if w == "mailbox" then found = true end end
+	check(found, "keywords include mailbox")
+end)
+
+step("tracking: an existing profile is told once, not placed", function()
+	local saved = ns.db.placement.EverlookBar_Tracking
+	ns.db.placement.EverlookBar_Tracking = nil
+	ns.db.told.trackingPlugin = nil
+	local before = #MOCK.log
+	TR.TellExisting()
+	TR.TellExisting()
+	local n = 0
+	for i = before + 1, #MOCK.log do if MOCK.log[i]:find("Tracking plugin", 1, true) then n = n + 1 end end
+	eq(n, 1, "said once")
+	check(ns.db.placement.EverlookBar_Tracking == nil, "not put on a bar")
+	ns.db.placement.EverlookBar_Tracking = saved
+end)
+
+------------------------------------------------------------------------
 -- Cost
 ------------------------------------------------------------------------
 step("cost: idle ticks make no garbage; time per tick", function()

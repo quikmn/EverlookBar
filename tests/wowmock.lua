@@ -422,6 +422,32 @@ C_TradeSkillUI = {
 	GetBaseProfessionInfo = function() return { professionID = MOCK.openProfession or 0 } end,
 }
 
+-- Minimap tracking (C_Minimap, MinimapScriptTrackingInfo). type "spell" casts a tracking spell; subType 2 = townsfolk.
+local function track(name, tex, on, kind, sub, spellID) return { name = name, texture = tex, active = on, type = kind, subType = sub, spellID = spellID } end
+function MOCK.ResetTracking()
+	MOCK.tracking = {
+		track("Find Herbs", 133939, false, "spell", 1, 2383),
+		track("Find Minerals", 136025, true, "spell", 1, 2580),
+		track("Auctioneer", 136452, false, "npc", 2),
+		track("Mailbox", 136459, true, "npc", 2),
+		track("Repair", 136465, false, "npc", 2),
+		track("Points of Interest", 136461, false, "other", 0),
+	}
+	MOCK.trackingSet = {}
+end
+MOCK.ResetTracking()
+C_Minimap = {
+	GetNumTrackingTypes = function() return #MOCK.tracking end,
+	GetTrackingInfo = function(i) return MOCK.tracking[i] end,
+	SetTracking = function(i, on)
+		table.insert(MOCK.trackingSet, i .. "=" .. tostring(on))
+		local t = MOCK.tracking[i]
+		if t.type == "spell" and on then for _, o in ipairs(MOCK.tracking) do if o.type == "spell" then o.active = false end end end
+		t.active = on
+	end,
+	ClearAllTracking = function() table.insert(MOCK.trackingSet, "clear"); for _, t in ipairs(MOCK.tracking) do t.active = false end end,
+}
+
 -- Reputation (C_Reputation, retail-style FactionData)
 local function faction(id, name, reaction, cur, lo, hi, extra)
 	local d = { factionID = id, name = name, reaction = reaction, currentStanding = cur, currentReactionThreshold = lo,

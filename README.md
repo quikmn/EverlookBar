@@ -21,6 +21,11 @@ ElvUI show. Built in (each one switchable, each one a normal LDB plugin):
   for the list. A skill at its cap is coloured: time for the next rank at a trainer.
 - **Performance**: FPS and latency; memory, CPU per addon and bandwidth in the tooltip.
 - **Location**: zone, subzone (Tarren Mill, Southshore Inn) and coordinates. Click to open the map.
+- **Tracking**: what the minimap tracks (Herbs, Mailbox). Click for a menu of everything you can track, with tick
+  boxes: find spells (Find Herbs, Find Minerals, Track Beasts...) and townsfolk (Mailbox, trainers, Flight Master,
+  Innkeeper, Banker, Auctioneer, Repair, Stable Master...). Right-click: untrack all. In combat the menu only shows.
+  It does what the minimap's tracking button does, so that button can stay hidden. Settings: every tracked type, the
+  first only, or just the icon.
 - **Durability**: your most worn item in percent; every slot in the tooltip.
 - **Mail**: new mail or not, with the senders.
 - **Bags**: free and total slots; profession bags apart.
