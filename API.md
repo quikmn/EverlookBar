@@ -2,7 +2,7 @@
 
 EverlookDB Bar shows **LibDataBroker-1.1 (LDB)** plugins, like Titan Panel, ChocolateBar, Bazooka and ElvUI do. If your
 addon already has an LDB data object, it already works on EverlookDB Bar: the player adds it on the Plugins page or
-drags it onto a bar in unlock mode. EverlookDB Bar's own plugins (XP, Performance, Location...) are plain LDB objects and
+drags it onto a bar after Unlock to move. EverlookDB Bar's own plugins (XP, Performance, Location...) are plain LDB objects and
 use the same path you do.
 
 For the few things LDB cannot express, there is a small public API: `EverlookBar.API`.

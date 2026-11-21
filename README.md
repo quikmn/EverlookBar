@@ -35,22 +35,36 @@ ElvUI show. Built in (each one switchable, each one a normal LDB plugin):
   a right-click.
 - **Clock**: off by default.
 
-**Clean minimap.** Unlock it and drag the minimap itself with the left mouse button (mouse wheel to resize,
-right-click to lock); it snaps to screen edges and remembers where you put it. Square or round, a border of your
-thickness and colour, an optional zone line showing where you stand. Hide or move the zone text, the day/night
-indicator, the clock, Blizzard's coordinates and the tracking, calendar and mail pieces. Every addon's minimap button
-goes into one small drawer beside the minimap, with its own icon, tooltip and click, or is hidden. If another addon
-already manages the minimap (BasicMinimap, SexyMap...), EverlookDB Bar leaves the minimap frame alone and says so once in
-chat.
+**Clean minimap.** Square (the default) or round, a border of your thickness and colour, any size, anywhere on
+screen, and an optional zone line showing where you stand.
+
+**The pieces around the minimap.** The zone name, tracking button, mail icon, calendar button, day and night dial,
+clock, coordinates, zoom buttons and addon menu button each have one switch on the Minimap page: on or off, at once.
+A piece that is on sits on the minimap's edge, above the map, and moves and grows with it. Each has its own place to
+start with; to change it, press **Unlock to move** and drag it. It slides along the edge (the ring of a round
+minimap, the outline of a square one) and snaps to the corners and the middle of the sides; hold Shift to put it
+anywhere. Change the shape later and the pieces follow the new edge. "Reset" on a row, or a right-click on the piece
+while moving, puts one back.
+
+**Addon buttons.** Every addon's minimap button goes into one small drawer beside the minimap, with its own icon,
+tooltip and click, or is hidden.
+
+If another addon already manages the minimap (BasicMinimap, SexyMap...), EverlookDB Bar leaves the minimap alone, says
+so once in chat and at the top of the Minimap page, and greys out what doesn't apply.
 
 ## Using it
 
 - `/ebar` opens the settings window. Everything in it also works from chat (see Commands below).
 - On the Plugins page of `/ebar`, drag a plugin's row to reorder it, move it to another group or bar, or drop it in
   "Not on a bar" to take it off; drag from there onto a bar to add it. Right-click or Escape cancels a drag.
-- `/ebar unlock` (or the Unlock button): drag bars to any edge or anywhere, the minimap where you like, and plugins
+- **Unlock to move** (the button on the Minimap page and at the bottom left of the window, or `/ebar unlock`): drag
+  bars to any edge or anywhere, the minimap where you like, the pieces around it, and plugins
   between bars and groups. A grid helps you line things up. Escape locks again.
-- `/ebar minimap unlock`, `lock`, `reset`: move the minimap on its own, or put it back in the top-right corner.
+- While moving, a small control in the middle of the minimap has **Done** and **Reset positions** (the minimap back in
+  the top-right corner at 100%, every piece back in its own place); the mouse wheel over the minimap changes its
+  size. Dots show the edge the pieces stick to. Escape ends it too, and so does combat.
+- `/ebar minimap.mail on` (or `off`) switches a piece from chat; `/ebar minimap reset` puts the minimap and its pieces
+  back.
   `/ebar minimap scan` lists what the minimap module found and any other text shown around the minimap.
 - `/ebar perf` shows what EverlookDB Bar itself costs.
 
@@ -60,9 +74,10 @@ chat.
 
 - `/ebar` opens the settings window; it's also under Settings > AddOns.
 - `/ebar bar.edge left` (or `/ebar set bar.edge left`): change a setting; `/ebar bar2.edge left` changes bar 2. `/ebar get` lists every setting, `/ebar get bar.edge` shows one.
-- `/ebar unlock`, `/ebar lock` (or `move`, which flips it): drag bars, the minimap and plugins.
+- `/ebar unlock`, `/ebar lock` (or `move`, which flips it): drag bars, plugins, the minimap and the pieces around it.
 - `/ebar bar`, `bar 2`, `bar add left`, `bar delete 2`; `/ebar plugins`, `place gold 1 right`, `remove gold`.
-- `/ebar minimap unlock`, `lock`, `reset`, `scan`, `grab <frame>`, `ignore <frame>`.
+- `/ebar minimap unlock`, `lock` (the same as `/ebar unlock` and `lock`), `reset`, `scan`, `grab <frame>`, `ignore <frame>`.
+- `/ebar minimap.<piece> on|off`: zone, tracking, mail, calendar, daynight, clock, coords, zoom, compartment, ringart.
 - `/ebar reset bars`, `/ebar reset all`, `/ebar minimap reset` ask first (type it again within 10 seconds); `/ebar reset all confirm` still works.
 - `/ebar search <words>` opens the window with its search box filled; `/ebar status` (bars, plugins, memory), `/ebar version`, `/ebar perf`.
 - `/ebar help` (or `?`) lists every command; a mistyped one suggests the nearest.
@@ -74,7 +89,9 @@ chat.
 - Text is set only when it changed; widths don't wobble when a number ticks.
 - Every plugin runs protected: a broken one gets a small red marker, the bar keeps going.
 - Secret values (WoW Forever's combat rules) are shown, never read.
-- Nothing protected is touched in combat; minimap changes wait until combat ends.
+- Nothing protected is touched in combat. A piece around the minimap switches at once, also in combat, unless the game
+  locks it; that and changes to the minimap itself (shape, size, place) wait until combat ends, and the Minimap page
+  says so meanwhile.
 - Windows close with Escape through their own key handler, never through Blizzard's panel lists, so NoAutoClose and
   BlizzMove keep working.
 
