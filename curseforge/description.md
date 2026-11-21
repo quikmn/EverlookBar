@@ -4,7 +4,7 @@ EverlookDB Bar: info bars and a clean minimap for WoW Forever.
 As many as you like: along the top, bottom, left or right edge, or anywhere. One row or more, the whole edge or a set length, any background colour and opacity, font, size and spacing. Plugins sit in left, centre and right groups.
 
 ### Plugins
-Every LibDataBroker plugin from any addon can go on a bar (the same plugins Titan Panel, ChocolateBar and ElvUI show). Built in, each one switchable:
+Every LibDataBroker plugin from any addon can go on a bar. Built in, each one switchable:
 
 - XP bar: thin bar with rested XP and percentage.
 - Reputation bar: your watched faction, coloured by standing.

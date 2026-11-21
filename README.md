@@ -11,8 +11,7 @@ Info bars and a clean minimap for WoW Forever (1.60.1, interface 16001).
 the whole edge or a set length, any background colour and opacity (black at 60% by default), font, size and
 spacing. Side bars stack their plugins. Plugins sit in left, centre and right groups.
 
-**Plugins.** Every LibDataBroker plugin from any addon can go on a bar, the same plugins Titan Panel, ChocolateBar and
-ElvUI show. Built in (each one switchable, each one a normal LDB plugin):
+**Plugins.** Every LibDataBroker plugin from any addon can go on a bar. Built in (each one switchable, each one a normal LDB plugin):
 
 - **XP bar**: a thin bar with rested XP and the percentage. Hidden at max level.
 - **Reputation bar**: one faction as a thin bar like the XP bar, coloured by standing (red, orange, yellow, green).
@@ -49,7 +48,7 @@ while moving, puts one back.
 **Addon buttons.** Every addon's minimap button goes into one small drawer beside the minimap, with its own icon,
 tooltip and click, or is hidden.
 
-If another addon already manages the minimap (BasicMinimap, SexyMap...), EverlookDB Bar leaves the minimap alone, says
+If another addon already manages the minimap, EverlookDB Bar leaves the minimap alone, says
 so once in chat and at the top of the Minimap page, and greys out what doesn't apply.
 
 ## Using it
@@ -65,7 +64,7 @@ so once in chat and at the top of the Minimap page, and greys out what doesn't a
   size. Dots show the edge the pieces stick to. Escape ends it too, and so does combat.
 - `/ebar minimap.mail on` (or `off`) switches a piece from chat; `/ebar minimap reset` puts the minimap and its pieces
   back.
-  `/ebar minimap scan` lists what the minimap module found and any other text shown around the minimap.
+  `/ebar minimap scan` lists any other text shown around the minimap and the addon it comes from.
 - `/ebar perf` shows what EverlookDB Bar itself costs.
 
 ## Commands
@@ -84,42 +83,17 @@ so once in chat and at the top of the Minimap page, and greys out what doesn't a
 
 ## Built to stay out of the way
 
-- One shared ticker for everything, with its own interval per plugin. Most plugins only update on game events;
-  Location reads your position only while you move.
-- Text is set only when it changed; widths don't wobble when a number ticks.
-- Every plugin runs protected: a broken one gets a small red marker, the bar keeps going.
-- Secret values (WoW Forever's combat rules) are shown, never read.
-- Nothing protected is touched in combat. A piece around the minimap switches at once, also in combat, unless the game
-  locks it; that and changes to the minimap itself (shape, size, place) wait until combat ends, and the Minimap page
-  says so meanwhile.
-- Windows close with Escape through their own key handler, never through Blizzard's panel lists, so NoAutoClose and
-  BlizzMove keep working.
+- Light: plugins update only when something changes, so the bar costs next to nothing.
+- A broken plugin from another addon gets a small red marker; the bar keeps going.
+- Safe in combat: nothing the game protects is touched while you fight. Minimap changes wait until combat ends.
+- Works alongside NoAutoClose and BlizzMove.
 
 ## For plugin authors
 
-See [API.md](API.md): any LibDataBroker plugin works as is; `EverlookBar.API` adds custom widgets, settings and the
-shared ticker. The full guide, with a working plugin in 15 lines and a brief to paste into an AI assistant:
+Any LibDataBroker plugin works as is. To add your own widgets and settings, see [API.md](API.md) or the guide at
 https://everlookdb.com/ebar/plugins (also on the "Build your own" page of `/ebar`).
-
-## Renaming
-
-The name lives in one place: the top of `Core.lua` (`ns.NAME`, `ns.SLASH`, `ns.GLOBAL`, `ns.PREFIX`, `ns.SAVED`),
-plus the `.toc` (Title, SavedVariables, and the file name if the folder changes).
-
-## Tests
-
-`python -P tests/run.py` runs the offline tests in Lua 5.1 (lupa) against a small fake of the game.
 
 ## Credits and license
 
-EverlookDB Bar is licensed under the GNU General Public License version 3 (GPL-3.0); the full text is in `LICENSE`.
-Every line of EverlookDB Bar is its own; it contains no code from Titan Panel, TomTom, ElvUI or any minimap addon.
-
-Bundled libraries, each under its own terms:
-
-- LibStub: public domain (see its header).
-- CallbackHandler-1.0: by the Ace3 Development Team, BSD-style licence in `Libs/CallbackHandler-1.0/LICENSE.txt`.
-- EverlookUI: the shared settings window of these addons.
-- `Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua` is EverlookDB Bar's own implementation of the public LibDataBroker 1.1
-  interface (GPL-3.0). The widely shared file carries no licence, so it is not bundled; this one is compatible with it
-  and with every LDB plugin.
+EverlookDB Bar is licensed under GPL-3.0 (see `LICENSE`). Bundled: LibStub (public domain), CallbackHandler-1.0
+(Ace3 Development Team, BSD-style licence in `Libs/CallbackHandler-1.0/LICENSE.txt`).

@@ -1,45 +1,40 @@
 # Changelog
 
 ## v0.3.0 (2026-11-21)
-- The pieces around the minimap are reworked. Each one (zone name, tracking button, mail icon, calendar button, day and night dial, clock, coordinates, zoom buttons, addon menu button) now has a plain on/off switch with a small picture and a Reset button, in one short list on the Minimap page. Switching one works at once, also in combat; if the game locks a piece in combat, it changes when combat ends and the page says so.
-- A piece that is on now sits on the minimap's edge, above the map, and moves and grows with the minimap. Before, "Show" left it in the top-right corner of the screen (under a top bar, and far from a minimap you had moved), and "Move" put it in the middle of the map, partly underneath it.
-- Moving is one button: **Unlock to move**, on the Minimap page and at the bottom left of the settings window (`/ebar unlock` still works). It covers bars, plugins, the minimap and its pieces together. Every piece gets a box with its name; drag it along the minimap's edge. It snaps to the corners and the middle of the sides on a square minimap and every 45 degrees on a round one; hold Shift to put it anywhere; right-click a box to put that piece back. Before, the page's "Unlock minimap" switch only unlocked the minimap itself, so the pieces could not be moved from there.
-- While you are moving things, a small control in the middle of the minimap has Done and Reset positions and shows the minimap's size (mouse wheel over the map). The old banner at the top of the screen, which sat under a top bar, is gone. Escape ends it too. If another addon manages the minimap, the control is in the middle of the screen instead.
-- Round and square: a piece's place is saved as a spot on the edge, so when you change the shape, the size or the border, the pieces stay on the edge instead of floating or ending up inside the map.
-- New players get a square minimap. If you already use EverlookDB Bar, your shape stays as it is.
-- The minimap keeps clear of your bars when you drop it, resize it or switch a piece on next to a bar, so neither the map nor its pieces end up under a bar.
-- The calendar button now belongs to "Calendar button" (it used to follow the day/night setting), and "Day and night dial" is the small sun or moon. The zoom buttons, when on, stay visible instead of only under the mouse. Pieces this game version doesn't have (world map button, dungeon difficulty flag) are no longer listed.
-- Your saved settings carry over: "Show" and "Move" become on, "Hide" becomes off, and a piece you had moved stays where you put it. From chat it is now `/ebar minimap.mail on` or `off` (`show` and `hide` still work; `move` is gone, use Unlock to move).
-- New plugin: Tracking. It shows what your minimap tracks (Herbs, Mailbox) and a click opens a menu of everything you can track, find spells and townsfolk apart, each with a tick box: Mailbox, trainers, Flight Master, Find Herbs, Find Minerals and the rest. Right-click to untrack all. In combat the menu only shows; change it after combat. With the minimap's tracking button hidden, this is the way to change tracking. New characters get it on the bar; if you already had a layout, it waits on the Plugins page (put it on with `/ebar place tracking 1 right`).
-- The addon is now called EverlookDB Bar (was Everlook Bar), like the rest of the EverlookDB family. Settings, commands and the folder stay the same.
+- Pieces around the minimap (zone name, tracking, mail, calendar, day/night, clock, coordinates, zoom, addon menu): one on/off switch each, with a Reset button, on the Minimap page.
+- Pieces now sit on the minimap's edge and move and grow with it; they follow when you change shape, size or border.
+- One **Unlock to move** button (or `/ebar unlock`) moves bars, plugins, the minimap and its pieces together. Pieces snap along the edge; hold Shift to place freely.
+- While moving, a small control on the minimap has Done and Reset positions; the mouse wheel changes the minimap's size.
+- The minimap keeps clear of your bars.
+- New players get a square minimap; your existing shape stays.
+- New plugin: Tracking. Shows what your minimap tracks; click for a menu of everything you can track. Add it with `/ebar place tracking 1 right` if you already had a layout.
+- Your settings carry over. From chat it's now `/ebar minimap.mail on` or `off`.
+- Renamed to EverlookDB Bar; settings, commands and folder stay the same.
 
 ## v0.2.2 (2026-11-21)
-- Bags, Calendar and Clock open through the game's own buttons (the backpack button, the calendar button), like Durability, Reputation, Quest log and Location already did, so nothing of Everlook Bar rubs off on Blizzard's bag frames or calendar. A bag item clicked in combat can no longer be blocked because the bar opened your bags.
-- Plugins that open a Blizzard panel now work in combat even when the mouse came onto them during the fight: when combat starts, each one gets its secure click. A plugin under the mouse when combat ends gets it at once, and the click stays right when a bar moves its plugins.
-- Reputation bar: clicking it twice opens and closes the reputation panel, without moving the mouse away in between.
-- Fixed a possible Lua error from the bag cooldown fix in combat (a secret cooldown value was compared). Secret cooldowns are now left alone.
-- Gold: this session's change no longer counts your whole purse as a gain when the game reported 0 gold before you were in the world.
-- XP bar: hides at once when you reach the top level.
-- Settings window: "XP percentage in the middle of the bar", "Hide the global cooldown spin on bag items" and the Quest log settings were only in chat; they are now on the Built-in page, and the settings search finds them.
-- Professions: a skill the game gives no cap shows its number alone instead of "150/0".
-- A plugin from another addon whose text has line breaks stays on one line.
-- The "Build your own" link window can be moved.
+- Bags, Calendar and Clock open through the game's own buttons, so bag clicks in combat are never blocked.
+- Plugins that open a game panel now also work when you mouse over them during combat.
+- Reputation bar: click again to close the panel.
+- Fixed a possible Lua error in combat from the bag cooldown fix.
+- Gold: the session change no longer counts your whole purse as a gain at login.
+- XP bar hides at once at the top level.
+- A few settings that were chat-only are now in the window and the settings search.
+- Professions without a cap show just the number; multi-line plugin text stays on one line; the "Build your own" window can be moved.
 
 ## v0.2.1 (2026-11-21)
-- The addon has its own icon in the addon list, in the EverlookDB style (the database stack with a bar).
+- New addon icon in the EverlookDB style.
 
 ## v0.2.0 (2026-11-20)
-- Settings window: switches, buttons and sliders use a softer shade of the accent colour, an on switch has a dark knob so it stands out, and boxes have cleaner rounded edges.
-- Quest log: a click opens your quest log again. When the game's own quest log button doesn't open it, the bar opens it itself.
-- The bag counter also counts your reagent bag (WoW Forever's extra bag slot).
-
-- Minimap drawer: a minimap button that its own addon is dragging (Everlook Pets, for one) is no longer pulled back into the drawer while you drag it; it returns to its place when you let go.
-- Performance: addon memory is only measured while you hover the plugin, never on a timer (measuring walks every addon and can cause a small hitch). With "Show total addon memory" on, the bar shows the last reading.
-- Quieter chat: "another addon is managing the minimap" (and the notes about minimap buttons and coordinates from other addons) is said once, not on every login and /reload. The minimap page and `/ebar status` still say it. "Locked for combat" is said once instead of twice, and turning the minimap off no longer prints a line.
-- Professions: a left-click on a profession opens it again; right-click shows the list of all your professions. Herbalism, Skinning and others without a window still show the list.
-- Fixed Lua errors on your player frame ("attempt to compare a secret number value ... tainted by 'EverlookBar'") after opening the character or reputation panel from the bar. Durability, Reputation, Quest log and Location now open their panels through the game's own buttons, so nothing of Everlook Bar rubs off on Blizzard's frames. In combat, move the mouse onto the plugin before the fight starts, or open the panel with its key.
-- Fixed a Lua error, "invalid key to 'next'", that could show up while plugins updated.
-- Bag items no longer all spin with the global cooldown after every spell. WoW Forever reports the global cooldown for every item in your bags; Everlook Bar now clears that in Bagnon, Blizzard's bags and other bag addons, while real item cooldowns (potions, Hearthstone, trinkets) still show. Setting: Hide the global cooldown spin on bag items.
+- Softer, cleaner look for switches, buttons and sliders in the settings window.
+- Quest log: a click opens your quest log again.
+- The bag counter includes your reagent bag.
+- Minimap drawer: a button you are dragging is no longer pulled back into the drawer.
+- Performance: addon memory is measured only while you hover the plugin, so no small hitches.
+- Quieter chat: notices are said once instead of on every login.
+- Professions: left-click opens a profession again; right-click shows the list.
+- Fixed Lua errors on your player frame after opening panels from the bar.
+- Fixed a Lua error that could show up while plugins updated.
+- Bag items no longer all spin with the global cooldown; real item cooldowns still show (setting: Hide the global cooldown spin on bag items).
 
 ## v0.1.0 (2026-11-19)
 
@@ -65,7 +60,7 @@
   the left mouse button, mouse wheel to resize, right-click or Lock to lock; snaps to screen edges, `/ebar minimap
   reset` puts it back. Fixed the round shape showing black, the drawer showing empty grey circles instead of the
   addon icons (and opening away from the minimap), Blizzard's coordinates under the minimap staying visible, and a
-  Lua error from Blizzard's mail icon (UPDATE_PENDING_MAIL) after hiding it. New: border thickness, a zone line
+  Lua error from Blizzard's mail icon after hiding it. New: border thickness, a zone line
   showing the subzone, and `/ebar minimap scan` naming any other text around the minimap.
 - First version. Info bars for LibDataBroker plugins: any number of bars on any edge or anywhere, one or more rows,
   your own length, colour, opacity, font and spacing; plugins in left, centre and right groups, placed from the
