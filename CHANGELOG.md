@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+- Bags, Calendar and Clock open through the game's own buttons (the backpack button, the calendar button), like Durability, Reputation, Quest log and Location already did, so nothing of Everlook Bar rubs off on Blizzard's bag frames or calendar. A bag item clicked in combat can no longer be blocked because the bar opened your bags.
+- Plugins that open a Blizzard panel now work in combat even when the mouse came onto them during the fight: when combat starts, each one gets its secure click. A plugin under the mouse when combat ends gets it at once, and the click stays right when a bar moves its plugins.
+- Reputation bar: clicking it twice opens and closes the reputation panel, without moving the mouse away in between.
+- Fixed a possible Lua error from the bag cooldown fix in combat (a secret cooldown value was compared). Secret cooldowns are now left alone.
+- Gold: this session's change no longer counts your whole purse as a gain when the game reported 0 gold before you were in the world.
+- XP bar: hides at once when you reach the top level.
+- Settings window: "XP percentage in the middle of the bar", "Hide the global cooldown spin on bag items" and the Quest log settings were only in chat; they are now on the Built-in page, and the settings search finds them.
+- Professions: a skill the game gives no cap shows its number alone instead of "150/0".
+- A plugin from another addon whose text has line breaks stays on one line.
+- The "Build your own" link window can be moved.
+
 ## v0.2.1 (2026-11-21)
 - The addon has its own icon in the addon list, in the EverlookDB style (the database stack with a bar).
 
