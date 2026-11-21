@@ -1554,6 +1554,66 @@ step("minimap: dropped, resized or given a piece, it stays clear of the bars (an
 	slash("minimap reset"); slash("minimap reset")
 end)
 
+step("edit mode: a box's name sits outside it, never on the control, another box, another name or off the screen", function()
+	local spot = ns.Unlock.LabelSpot
+	local screen = { 0, 0, 1920, 1058 } -- the room under a top bar
+	local function apart(a, b) return a[1] >= b[3] or a[3] <= b[1] or a[2] >= b[4] or a[4] <= b[2] end
+	-- a box on the map's right, room beside it: the name goes right, away from the map
+	local side, shift, r = spot({ 1000, 500, 1020, 520 }, 50, 12, 100, 0, screen, {})
+	eq(side, "right"); eq(r[1], 1024, "4 px from the box")
+	-- on the left: left
+	side = spot({ 800, 500, 820, 520 }, 50, 12, -100, 0, screen, {})
+	eq(side, "left")
+	-- above the map: above the box, centred
+	side, shift, r = spot({ 900, 600, 920, 620 }, 50, 12, 0, 100, screen, {})
+	eq(side, "top"); eq(shift, 0); eq(r[2], 623)
+	-- at the screen's right edge there is no room to the right: above the box (it is in the map's upper half),
+	-- slid left to stay on screen
+	side, shift, r = spot({ 1890, 500, 1915, 520 }, 50, 12, 100, 30, screen, {})
+	eq(side, "top", "next side round")
+	check(r[3] <= 1920 - 2 and shift < 0, "slid left, on screen")
+	-- in the lower half: below
+	side = spot({ 1890, 500, 1915, 520 }, 50, 12, 100, -30, screen, {})
+	eq(side, "bottom")
+	-- under the top bar there is no room above: beside the box instead
+	side, shift, r = spot({ 900, 1040, 920, 1056 }, 50, 12, 10, 100, screen, {})
+	check(side == "right", "not over the bar: " .. side)
+	check(r[4] <= 1058, "inside the room under the bar")
+	-- the control in the middle of the map is in the way of a name on the map's side: never placed on it
+	local control = { 860, 460, 1034, 540 }
+	side, shift, r = spot({ 1030, 520, 1050, 545 }, 60, 12, 100, 20, { 0, 0, 1060, 1058 }, { control })
+	check(apart(r, control), "clear of the control (" .. side .. ")")
+	-- a name already placed is avoided by the next one
+	local first = select(3, spot({ 1000, 500, 1020, 520 }, 50, 12, 100, 0, screen, {}))
+	side, shift, r = spot({ 1000, 505, 1020, 525 }, 50, 12, 100, 5, screen, { first })
+	check(apart(r, first), "two names never overlap")
+	-- nothing free at all: over its own box, still on screen
+	side, shift, r = spot({ 1890, 500, 1915, 520 }, 50, 12, 100, 0, { 0, 0, 1920, 1058 },
+		{ { 1800, 521, 1920, 560 }, { 1800, 460, 1920, 499 }, { 1700, 480, 1889, 540 } })
+	eq(side, "over")
+	check(r[3] <= 1920 - 2, "on screen")
+	-- live: every name of a full square minimap in the screen's corner is clear of the control and of the others
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	db.shape = "square"; mm:Redraw()
+	local keys = { "zone", "tracking", "mail", "calendar", "daynight", "clock", "coords", "zoom", "compartment" }
+	for _, k in ipairs(keys) do mm:SetPieceOn(k, true) end
+	ns.Unlock:Start()
+	local names = {}
+	for _, k in ipairs(keys) do
+		local m = ns.Unlock.movers[k]
+		check(m and m:IsShown() and m.side, k .. " has a box and a name")
+		if m.tagRect and m.side ~= "over" then names[#names + 1] = { k, m.tagRect } end
+	end
+	for i, a in ipairs(names) do
+		for j = i + 1, #names do check(apart(a[2], names[j][2]), a[1] .. " and " .. names[j][1] .. " overlap") end
+		check(a[2][1] >= 0 and a[2][3] <= 1920 and a[2][4] <= 1080 - 22, a[1] .. " off the screen or over the bar")
+	end
+	ns.Unlock:Stop()
+	for _, k in ipairs(keys) do mm:SetPieceOn(k, false); db.pieceOn[k] = nil end
+	db.shape = "round"; mm:Redraw()
+end)
+
 step("minimap: a protected piece shown by Blizzard in combat is hidden after combat, never touched in it", function()
 	local mm = ns.modules.minimap
 	local track = MiniMapTracking

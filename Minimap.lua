@@ -531,8 +531,9 @@ function M:Overhang()
 			local w, h = self:PieceSize(e)
 			if w > 0 and h > 0 then
 				local x, y = self:PieceXY(e.key)
-				r, l = math.max(r, x + w / 2 - half), math.max(l, -(x - w / 2) - half)
-				t, b = math.max(t, y + h / 2 - half), math.max(b, -(y - h / 2) - half)
+				-- (3 more: the box drawn round a piece in edit mode)
+				r, l = math.max(r, x + w / 2 + 3 - half), math.max(l, -(x - w / 2 - 3) - half)
+				t, b = math.max(t, y + h / 2 + 3 - half), math.max(b, -(y - h / 2 - 3) - half)
 			end
 		end
 	end

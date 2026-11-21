@@ -148,6 +148,57 @@ local function newMover(key)
 	return m
 end
 
+-- Where a box's name goes. Pure: rectangles are { left, bottom, right, top } in screen units.
+--   box: the piece's box; tw, th: the name's size; ox, oy: the box's centre from the minimap's centre;
+--   bounds: the room on screen (inside the bars); taken: rectangles the name may not touch (the control in the middle
+--   of the map, the other boxes, the names placed so far).
+-- The name goes outside its box, on the side away from the map; when that is off the screen or on something else, to
+-- the next side round (above or below a box on the map's left or right, and the other way round), and last on the
+-- map's side. Above and below, it slides sideways to stay on screen. With no free side at all it goes over its own
+-- box. Returns the side ("right", "left", "top", "bottom", "over"), a sideways shift for top, bottom and over, and
+-- the name's rectangle.
+local function hits(r, list)
+	for _, o in ipairs(list) do
+		if r[1] < o[3] and r[3] > o[1] and r[2] < o[4] and r[4] > o[2] then return true end
+	end
+	return false
+end
+
+function Unlock.LabelSpot(box, tw, th, ox, oy, bounds, taken)
+	local cx, cy = (box[1] + box[3]) / 2, (box[2] + box[4]) / 2
+	local function rect(side)
+		if side == "right" then return { box[3] + 4, cy - th / 2, box[3] + 4 + tw, cy + th / 2 }, 0 end
+		if side == "left" then return { box[1] - 4 - tw, cy - th / 2, box[1] - 4, cy + th / 2 }, 0 end
+		local l = cx - tw / 2
+		local shift = 0
+		if l < bounds[1] + 2 then shift = bounds[1] + 2 - l elseif l + tw > bounds[3] - 2 then shift = bounds[3] - 2 - (l + tw) end
+		l = l + shift
+		if side == "top" then return { l, box[4] + 3, l + tw, box[4] + 3 + th }, shift end
+		return { l, box[2] - 3 - th, l + tw, box[2] - 3 }, shift
+	end
+	local order
+	if math.abs(ox) >= math.abs(oy) then
+		local out, back = ox >= 0 and "right" or "left", ox >= 0 and "left" or "right"
+		local near, far = oy >= 0 and "top" or "bottom", oy >= 0 and "bottom" or "top"
+		order = { out, near, far, back }
+	else
+		local out, back = oy >= 0 and "top" or "bottom", oy >= 0 and "bottom" or "top"
+		local near, far = ox >= 0 and "right" or "left", ox >= 0 and "left" or "right"
+		order = { out, near, far, back }
+	end
+	for _, side in ipairs(order) do
+		local r, shift = rect(side)
+		if r[1] >= bounds[1] and r[3] <= bounds[3] and r[2] >= bounds[2] and r[4] <= bounds[4] and not hits(r, taken) then
+			return side, shift, r
+		end
+	end
+	-- nowhere free (a crowded edge): over its own box, slid sideways to stay on screen
+	local l = cx - tw / 2
+	local shift = 0
+	if l < bounds[1] + 2 then shift = bounds[1] + 2 - l elseif l + tw > bounds[3] - 2 then shift = bounds[3] - 2 - (l + tw) end
+	return "over", shift, { l + shift, cy - th / 2, l + shift + tw, cy + th / 2 }
+end
+
 -- Put a box over every piece that is on (after a toggle, a drag, a new minimap size or shape).
 function Unlock:SyncMovers()
 	if not self.active then return end
@@ -156,6 +207,18 @@ function Unlock:SyncMovers()
 	local mm = minimapModule()
 	if mm then
 		local s = mapScale()
+		local W, H = screen()
+		local mx, my = Minimap:GetCenter()
+		mx, my = (ns.Num(mx) or 0) * s, (ns.Num(my) or 0) * s
+		local inset = mm.BarInsets()
+		local bounds = { inset[1], inset[4], W - inset[2], H - inset[3] }
+		-- what a name may not touch: the control in the middle of the map, every box, the names placed before it
+		local taken, shown = {}, {}
+		if panel and panel.onMap then
+			local ps = ns.Num(panel:GetScale()) or 1
+			local pw, ph = (ns.Num(panel:GetWidth()) or 172) * ps / 2 + 2, (ns.Num(panel:GetHeight()) or 78) * ps / 2 + 2
+			taken[#taken + 1] = { mx - pw, my - ph, mx + pw, my + ph }
+		end
 		for _, e in ipairs(mm.ELEMENTS) do
 			local parts = not e.fixed and mm:PieceShown(e.key) and mm:Parts(e) or nil
 			if parts and #parts > 0 then
@@ -166,32 +229,33 @@ function Unlock:SyncMovers()
 				m:SetSize(bw, bh)
 				m:ClearAllPoints()
 				m:SetPoint("CENTER", Minimap, "CENTER", x * s, y * s)
-				-- the name: inside a box wide enough for it, else beside the box on the side away from the map
-				-- (the other side when that would be off the screen)
-				local tw = ns.Num(m.tag:GetStringWidth()) or 40
-				m.tag:ClearAllPoints()
-				m.inside = bw >= tw + 6
-				if m.inside then
-					m.tag:SetPoint("CENTER", m, "CENTER", 0, 0)
-				else
-					local a = mm:PiecePos(e.key) % 360
-					local side = (a > 45 and a < 135) and "top" or (a > 225 and a < 315) and "bottom" or (a <= 45 or a >= 315) and "right" or "left"
-					local W, H = screen()
-					local mx, my = Minimap:GetCenter()
-					local cx, cy = ((ns.Num(mx) or 0) + x) * s, ((ns.Num(my) or 0) + y) * s
-					if side == "right" and cx + bw / 2 + 4 + tw > W then side = "left"
-					elseif side == "left" and cx - bw / 2 - 4 - tw < 0 then side = "right"
-					elseif side == "top" and cy + bh / 2 + 16 > H then side = "bottom"
-					elseif side == "bottom" and cy - bh / 2 - 16 < 0 then side = "top" end
-					if side == "top" then m.tag:SetPoint("BOTTOM", m, "TOP", 0, 3)
-					elseif side == "bottom" then m.tag:SetPoint("TOP", m, "BOTTOM", 0, -3)
-					elseif side == "right" then m.tag:SetPoint("LEFT", m, "RIGHT", 4, 0)
-					else m.tag:SetPoint("RIGHT", m, "LEFT", -4, 0) end
-				end
-				m:Paint()
+				m.ox, m.oy = x * s, y * s
+				m.box = { mx + x * s - bw / 2, my + y * s - bh / 2, mx + x * s + bw / 2, my + y * s + bh / 2 }
+				taken[#taken + 1] = m.box
+				shown[#shown + 1] = m
 				m.used = true
 				m:Show()
 			end
+		end
+		-- the names: inside a box wide enough for one (the text pieces), else outside it where there is room
+		for _, m in ipairs(shown) do
+			local tw = (ns.Num(m.tag:GetStringWidth()) or 40) + 2
+			m.tag:ClearAllPoints()
+			m.inside = (m.box[3] - m.box[1]) >= tw + 4
+			if m.inside then
+				m.tag:SetPoint("CENTER", m, "CENTER", 0, 0)
+				m.side = "inside"
+			else
+				local side, shift, r = Unlock.LabelSpot(m.box, tw, 12, m.ox, m.oy, bounds, taken)
+				if side == "over" then m.tag:SetPoint("CENTER", m, "CENTER", shift, 0); m.inside = true
+				elseif side == "top" then m.tag:SetPoint("BOTTOM", m, "TOP", shift, 3)
+				elseif side == "bottom" then m.tag:SetPoint("TOP", m, "BOTTOM", shift, -3)
+				elseif side == "right" then m.tag:SetPoint("LEFT", m, "RIGHT", 4, 0)
+				else m.tag:SetPoint("RIGHT", m, "LEFT", -4, 0) end
+				m.side, m.tagRect = side, r
+				taken[#taken + 1] = r
+			end
+			m:Paint()
 		end
 	end
 	for _, m in pairs(self.movers) do if not m.used then m:Hide() end end
