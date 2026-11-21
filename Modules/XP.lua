@@ -15,8 +15,8 @@ M.pctText = ""
 local state = { cur = 0, max = 1, rested = 0, level = 1, valid = false }
 M.state = state
 
-local function atMax()
-	local level = ns.Num(UnitLevel("player"))
+local function atMax(level)
+	level = level or ns.Num(UnitLevel("player"))
 	local maxLevel = GetMaxPlayerLevel and ns.Num(GetMaxPlayerLevel())
 	if IsXPUserDisabled and IsXPUserDisabled() then return true end
 	return level and maxLevel and level >= maxLevel or false
@@ -33,9 +33,12 @@ function M:Read()
 	state.cur, state.max, state.rested, state.valid = cur, max, rested, true
 end
 
-function M:Update()
+-- newLevel: PLAYER_LEVEL_UP's level (the game may still report the old one from UnitLevel at that moment).
+function M:Update(newLevel)
 	self:Read()
-	local hide = atMax()
+	newLevel = ns.Num(newLevel)
+	if newLevel and newLevel > state.level then state.level = newLevel end
+	local hide = atMax(newLevel and state.level or nil)
 	ns.API.SetHidden(self.ldbName, hide)
 	local mdb = ns:ModuleDB("xp")
 	if not state.valid then
@@ -112,7 +115,7 @@ local widget = {
 function M:Enable()
 	obj = ns.Plugin(self, { type = "data source", label = "XP", text = "", OnTooltipShow = function(tip) M.Tooltip(tip) end })
 	ns.API.RegisterWidget(self.ldbName, widget)
-	local function update() M:Update() end
+	local function update(_, event, level) M:Update(event == "PLAYER_LEVEL_UP" and level or nil) end
 	for _, e in ipairs({ "PLAYER_XP_UPDATE", "UPDATE_EXHAUSTION", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD",
 		"ENABLE_XP_GAIN", "DISABLE_XP_GAIN" }) do
 		ns.On(e, self, update)

@@ -30,9 +30,13 @@ function M:Update()
 	local m = ns.Num(GetMoney())
 	if not m then return end
 	money = m
-	if not start then start = m end
+	-- the session starts once the character is in the world: before that the game may still say 0 (and the whole
+	-- purse would show as this session's gain)
+	if not start and (not IsLoggedIn or IsLoggedIn()) then start = m end
 	obj.text = M.Format(m, ns:ModuleDB("gold").copper)
 end
+
+function M.ResetSession() start, money = nil, nil end -- tests
 
 function M.Tooltip(tip)
 	ns.TipHeader(tip, "Gold")

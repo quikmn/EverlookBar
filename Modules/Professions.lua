@@ -111,6 +111,9 @@ end
 
 function M.AtCap(r) return r.max > 0 and r.rank >= r.max end
 
+-- "187/225", or just "187" when the game gives no cap.
+function M.RankText(r) return r.max > 0 and (r.rank .. "/" .. r.max) or tostring(r.rank) end
+
 -- Is this row on the bar with these settings?
 function M.Shows(r, db)
 	if r.kind == "primary" then return db.primary ~= false end
@@ -125,7 +128,7 @@ end
 
 -- The number, coloured when at the cap.
 function M.Number(r, db)
-	local s = db.showMax and (r.rank .. "/" .. r.max) or tostring(r.rank)
+	local s = db.showMax and M.RankText(r) or tostring(r.rank)
 	if db.markCap and M.AtCap(r) then s = hex(db.capColor) .. s .. "|r" end
 	return s
 end
@@ -180,7 +183,7 @@ end
 function M.Menu(owner)
 	local items = { { title = true, text = "Professions" } }
 	for _, r in ipairs(rows) do
-		local t = r.name .. "  " .. r.rank .. "/" .. r.max
+		local t = r.name .. "  " .. M.RankText(r)
 		if r.window then
 			items[#items + 1] = { value = r.id, text = t, icon = r.icon }
 		else
@@ -349,7 +352,7 @@ function M.Tooltip(tip)
 	local db = ns:ModuleDB("professions")
 	local anyCap = false
 	for _, r in ipairs(rows) do
-		local right = r.rank .. "/" .. r.max
+		local right = M.RankText(r)
 		if r.mod > 0 then right = right .. " (+" .. r.mod .. ")" end
 		local cap = M.AtCap(r)
 		if cap then

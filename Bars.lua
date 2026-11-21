@@ -200,6 +200,7 @@ function Bars:LayoutAll()
 	end
 	for i = #ns.db.bars + 1, #self.frames do self.frames[i]:Hide() end
 	if ns.Unlock and ns.Unlock.active then ns.Unlock:SyncMovers() end
+	if ns.SecureClick then ns.SecureClick:Sync() end -- secure covers follow their plugins
 end
 
 ------------------------------------------------------------------------
@@ -395,6 +396,8 @@ function Bars:Compose(rec, cfg)
 			v = ns.Str(v)
 			if v then text = v .. (ns.Str(s) and (" " .. ns.Str(s)) or "") end
 		end
+		-- a plugin's text with line breaks would stand taller than the bar: one line
+		if text and text:find("\n", 1, true) then text = text:gsub("\r?\n", " ") end
 	end
 	local label
 	if cfg.label then

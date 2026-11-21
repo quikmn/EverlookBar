@@ -124,7 +124,7 @@ function M.Tooltip(tip)
 	tip:AddDoubleLine("Latency world", string.format("%d ms", world), 0.9, 0.9, 0.9, 1, 1, 1)
 	tip:AddDoubleLine("Bandwidth in / out", string.format("%.1f / %.1f KB/s", bin, bout), 0.9, 0.9, 0.9, 1, 1, 1)
 	ns.TipHint(tip, "Home: you to your realm (chat, auction house). World: you to the game world (combat). The game updates latency about every 30 seconds.")
-	ns.TipHint(tip, "Packet loss and jitter are not shown: the game gives addons no packet loss, and latency that changes only every 30 seconds is too coarse to measure jitter honestly.")
+	ns.TipHint(tip, "Packet loss and jitter are not shown: the game gives addons no packet loss, and latency that changes only every 30 seconds can't measure jitter.")
 
 	-- memory: per addon, sorted; read now (hover), at most every 30 s
 	local total = memory(false)

@@ -126,7 +126,9 @@ function M.Text(s, db)
 end
 
 function M:Update()
-	if #M.choices == 1 then M.Scan() end -- the faction list for "/ebar reputation.faction <name>", once
+	-- the faction list for "/ebar reputation.faction <name>", read while it is empty. A read that had to open collapsed
+	-- headers sends UPDATE_FACTION itself, so after one of those the next waits a minute (no endless loop).
+	if #M.choices == 1 and GetTime() - (M.openedAt or -1000) >= 60 then M.Scan() end
 	local d, watched = M.Data()
 	M.Compute(d, state)
 	state.watched = watched
@@ -176,6 +178,7 @@ function M.Scan()
 		end
 		i = i + 1
 	end
+	if next(opened) then M.openedAt = GetTime() end
 	if next(opened) and R.CollapseFactionHeader then
 		for j = ns.Num(R.GetNumFactions()) or 0, 1, -1 do -- from the bottom: earlier rows keep their index
 			local d = R.GetFactionDataByIndex(j)

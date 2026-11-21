@@ -1206,6 +1206,7 @@ step("Build your own: the search finds the guide button; it shows the guide and 
 	b:GetScript("OnClick")(b, "LeftButton")
 	local w = ns.Guide.window
 	check(w and w:IsShown(), "link window shown")
+	check(w:IsMovable() and w:GetScript("OnDragStart"), "the window can be moved")
 	eq(w.guide:GetText(), "https://everlookdb.com/ebar/plugins", "guide address")
 	check(w.ai:GetText():find("https://everlookdb.com/ebar/plugins.md", 1, true), "AI line names the brief")
 	w.guide:SetText("typed over")
@@ -1582,6 +1583,137 @@ step("unknown events are skipped, not raised", function()
 	MOCK.unknownEvents = { NOT_A_REAL_EVENT = true }
 	check(ns.On("NOT_A_REAL_EVENT", {}, function() end) == false, "skipped")
 	MOCK.unknownEvents = nil
+end)
+
+------------------------------------------------------------------------
+-- Audit round 2026-11-21
+------------------------------------------------------------------------
+step("every setting is in the window, so the search finds it by its own label", function()
+	local wasShown = ns.app:IsShown()
+	if not wasShown then slash("") end
+	local missing = {}
+	for _, def in ipairs(ns.app.settingOrder) do
+		local label = type(def.label) == "function" and def.label() or def.label
+		local found = false
+		if type(label) == "string" then
+			for _, m in ipairs(ns.app:Search(label)) do if m.entry.info and m.entry.info.key == def.key then found = true end end
+		end
+		if not found then missing[#missing + 1] = def.key .. " [" .. tostring(label) .. "]" end
+	end
+	ns.app:Search("")
+	if not wasShown then slash("") end
+	check(#missing == 0, "not found: " .. table.concat(missing, ", "))
+end)
+
+step("bag cooldowns: a secret global cooldown or cooldown is left alone, never compared", function()
+	local hook = ns.BagGCDHook
+	local cleared = 0
+	local bagButton = CreateFrame("Button"); bagButton.GetBagID = function() return 0 end
+	local cd = CreateFrame("Cooldown", nil, bagButton); cd.Clear = function() cleared = cleared + 1 end
+	local saved = C_Spell
+	C_Spell = { GetSpellCooldown = function() return { startTime = S(100), duration = S(1.5) } end }
+	hook(cd, 100, 1.5)
+	eq(cleared, 0, "a secret global cooldown: the item's cooldown stays")
+	C_Spell = { GetSpellCooldown = function() return { startTime = 100, duration = 1.5 } end }
+	hook(cd, S(100), S(1.5))
+	eq(cleared, 0, "a secret item cooldown stays")
+	hook(cd, 100, 1.5)
+	eq(cleared, 1, "the plain global cooldown is cleared")
+	hook(cd, 50, 1.5)
+	eq(cleared, 1, "a real 1.5 s item cooldown that is not the GCD stays")
+	C_Spell = saved
+end)
+
+step("gold: this session starts in the world, not at a 0 read before login", function()
+	local G = ns.modules.gold
+	local savedMoney, savedLogged = MOCK.money, MOCK.loggedIn
+	G.ResetSession()
+	MOCK.loggedIn = false; MOCK.money = 0
+	G:Update()
+	MOCK.loggedIn = true; MOCK.money = 5000000
+	MOCK.Fire("PLAYER_ENTERING_WORLD")
+	MOCK.tip = {}
+	G.Tooltip(GameTooltip)
+	check(table.concat(MOCK.tip, " "):find("no change", 1, true), "no gain from the 0 before login: " .. table.concat(MOCK.tip, " "))
+	MOCK.money, MOCK.loggedIn = savedMoney, savedLogged
+	MOCK.Fire("PLAYER_MONEY")
+end)
+
+step("XP: hidden on the level-up to max even while the game still reports the old level", function()
+	local xpb = ns.Host.plugins.EverlookBar_XP
+	MOCK.xp.level = 59
+	MOCK.Fire("PLAYER_XP_UPDATE"); flush()
+	check(xpb.button:IsShown(), "shown at 59")
+	MOCK.Fire("PLAYER_LEVEL_UP", 60); flush()
+	check(not xpb.button:IsShown(), "hidden at once on reaching 60")
+	MOCK.xp.level = 20
+	MOCK.Fire("PLAYER_XP_UPDATE"); flush()
+	check(xpb.button:IsShown(), "back for the rest of the tests")
+end)
+
+step("secure clicks: bags, calendar and clock; every secure plugin is covered when combat starts", function()
+	local SC = ns.SecureClick
+	MainMenuBarBackpackButton = CreateFrame("Button", "MainMenuBarBackpackButton")
+	CharacterMicroButton = CreateFrame("Button", "CharacterMicroButton")
+	GameTimeFrame = CreateFrame("Button", "GameTimeFrame")
+	local function at(name, x)
+		local b = ns.Host.plugins[name].button
+		b.__left, b.__bottom, b.__w, b.__h = x, 1050, 50, 22
+		return b
+	end
+	local bags, dur, cal = at("EverlookBar_Bags", 500), at("EverlookBar_Durability", 300), at("EverlookBar_Calendar", 700)
+	bags:GetScript("OnEnter")(bags)
+	local c = SC:Frame()
+	eq(c:GetAttribute("clickbutton1"), MainMenuBarBackpackButton, "bags open through the game's backpack button")
+	c.__scripts.OnLeave(c)
+	check(not c:IsShown(), "cover gone after the mouse left")
+	cal:GetScript("OnEnter")(cal)
+	c = SC:Frame()
+	eq(c:GetAttribute("clickbutton1"), GameTimeFrame, "calendar opens through the game's calendar button")
+	-- the game's button changed nothing: the calendar opens from here after all
+	local opened = 0
+	local savedOpen = ns.OpenCalendar
+	ns.OpenCalendar = function() opened = opened + 1 end
+	c.__scripts.PreClick(c, "LeftButton"); c.__scripts.PostClick(c, "LeftButton"); flush()
+	eq(opened, 1, "fallback when the calendar did not open")
+	ns.OpenCalendar = savedOpen
+	check(c:IsShown() and SC:Covers()[cal] == c, "still covered (attributes refreshed after the click)")
+	c.__scripts.OnLeave(c)
+	-- combat starts: covers go over every secure plugin on screen (the mouse may come from anywhere in the fight)
+	MOCK.Fire("PLAYER_REGEN_DISABLED")
+	MOCK.combat = true
+	check(SC:Covers()[bags] and SC:Covers()[dur] and SC:Covers()[cal], "covered at combat start")
+	local bc = SC:Covers()[bags]
+	bc.__scripts.OnLeave(bc)
+	check(bc:IsShown(), "a cover stays in combat (it can't be hidden then)")
+	MOCK.combat = false
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	check(not SC:Covers()[bags] and not SC:Covers()[dur] and not SC:Covers()[cal], "covers go after combat")
+	-- a plugin moved while covered: the cover follows when the bar is laid out
+	bags:GetScript("OnEnter")(bags)
+	bags.__left = 520
+	ns.Bars:LayoutAll()
+	eq(SC:Covers()[bags].__points[1][4], 520, "cover follows its button")
+	bags:GetScript("OnLeave")(bags); SC:Uncover(bags)
+	MainMenuBarBackpackButton, CharacterMicroButton, GameTimeFrame = nil, nil, nil
+	for _, f in ipairs({ "Bags", "Calendar", "Clock" }) do
+		local src = assert(io.open(ROOT .. "/Modules/" .. f .. ".lua")):read("*a")
+		check(src:find("ebarSecure", 1, true), f .. " has a secure click")
+	end
+end)
+
+step("a third-party plugin's text with line breaks stays on one line", function()
+	local obj = LibStub("LibDataBroker-1.1"):NewDataObject("Multi_Line", { type = "data source", text = "a\nb\r\nc" })
+	ns.Host:Place("Multi_Line", 1, 1, "left"); flush()
+	eq(ns.Host.plugins.Multi_Line.button.text:GetText(), "a b c", "one line")
+	ns.Host:Remove("Multi_Line"); flush()
+	check(obj, "made")
+end)
+
+step("professions: a skill line with no cap shows its rank alone", function()
+	local P = ns.modules.professions
+	eq(P.RankText({ rank = 150, max = 0 }), "150")
+	eq(P.RankText({ rank = 150, max = 225 }), "150/225")
 end)
 
 ------------------------------------------------------------------------
