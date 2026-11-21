@@ -1,0 +1,1 @@
+Info bars for LibDataBroker plugins (XP, reputation, professions, gold, bags, durability, location...) and a clean minimap. For WoW Forever.
