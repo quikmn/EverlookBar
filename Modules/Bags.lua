@@ -1,4 +1,4 @@
--- Everlook Bar: bags. Free/total slots in your normal bags; profession bags (herb, enchanting, soul, quiver...)
+-- EverlookDB Bar: bags. Free/total slots in your normal bags; profession bags (herb, enchanting, soul, quiver...)
 -- counted apart in the tooltip. Bag events are bursty, so updates are coalesced to one per frame.
 local _, ns = ...
 

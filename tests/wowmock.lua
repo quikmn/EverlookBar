@@ -1,4 +1,4 @@
--- A small fake of the WoW client for Everlook Bar's offline tests (Lua 5.1 via lupa).
+-- A small fake of the WoW client for EverlookDB Bar's offline tests (Lua 5.1 via lupa).
 -- Secret values are tables with a locked metatable: arithmetic, comparison, length, indexing and calls throw, the
 -- way the real client stops addons from reading them. Widget setters that the client lets take secrets accept
 -- them; every other widget method throws when handed one.

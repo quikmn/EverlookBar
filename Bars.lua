@@ -1,4 +1,4 @@
--- Everlook Bar: bar frames and plugin buttons. Frames are made once and reused; text is set only when it changed;
+-- EverlookDB Bar: bar frames and plugin buttons. Frames are made once and reused; text is set only when it changed;
 -- widths are "sticky" (Layout.StickyWidth) so a number ticking from 59 to 60 never shakes the whole bar.
 local _, ns = ...
 local Bars = { frames = {}, buttons = {}, ready = false }

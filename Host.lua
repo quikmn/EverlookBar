@@ -1,4 +1,4 @@
--- Everlook Bar: the LDB host. Every LibDataBroker data object (from any addon, and our own built-ins) is a plugin
+-- EverlookDB Bar: the LDB host. Every LibDataBroker data object (from any addon, and our own built-ins) is a plugin
 -- that can be put on a bar. Attribute changes mark the plugin dirty; all dirty plugins are redrawn together on the
 -- next frame, so a plugin that writes text ten times in one frame costs one redraw.
 local _, ns = ...

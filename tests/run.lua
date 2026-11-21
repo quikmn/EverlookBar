@@ -1,4 +1,4 @@
--- Offline tests for Everlook Bar: loads the addon in TOC order against wowmock.lua and checks the LDB host, error
+-- Offline tests for EverlookDB Bar: loads the addon in TOC order against wowmock.lua and checks the LDB host, error
 -- isolation, the layout maths, the secret-value guards, the modules, the minimap, settings from chat and the API.
 local ROOT = ...
 local ADDON = "EverlookBar"
@@ -1295,8 +1295,8 @@ step("AI help: the text lists every setting by page, the bars and plugins; the a
 	local out = os.getenv("EBAR_AI_SAMPLE")
 	if out then local f = io.open(out, "wb"); f:write(t); f:close() end
 	local function has(want) check(t:find(want, 1, true), "AI text lacks: " .. want) end
-	has("Everlook Bar v")
-	has("Everlook Bar puts info bars on the screen edges")
+	has("EverlookDB Bar v")
+	has("EverlookDB Bar puts info bars on the screen edges")
 	has("Bars \194\187 Place:\n- bar.edge: Where. Choice: top = Top of the screen; bottom = Bottom of the screen;")
 	has("Now: top (Top of the screen). Default: top (Top of the screen).")
 	has("- bar.bg: Background colour and opacity. Colour: hex rrggbb, or r g b a as 0-1 numbers (a = opacity). Now: 0 0 0 0.6 (#000000). Default: 0 0 0 0.6 (#000000).")
@@ -1304,7 +1304,7 @@ step("AI help: the text lists every setting by page, the bars and plugins; the a
 	local clock = t:match("\n(%- clock%.enabled:[^\n]*)")
 	check(clock and clock:find("On/off. Now: o", 1, true) and clock:find("Default: off.", 1, true), "clock line: " .. tostring(clock))
 	has("- minimap.scale: Minimap size. Number 0.5 to 2.5, step 0.05.")
-	has("MORE ABOUT EVERLOOK BAR")
+	has("MORE ABOUT EVERLOOKDB BAR")
 	has("- bar 2: name \"Bar 2\", shown on, edge left (Left side (plugins stacked))")
 	has("- Gold: bar 2, left group, row 1")
 	has("/ebar place <plugin> <bar> [left / center / right] [row]")

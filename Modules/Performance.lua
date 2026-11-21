@@ -1,4 +1,4 @@
--- Everlook Bar: performance. FPS and latency on the bar (one cheap read per second, text rebuilt only when a shown
+-- EverlookDB Bar: performance. FPS and latency on the bar (one cheap read per second, text rebuilt only when a shown
 -- number changed); memory and per-addon CPU only in the tooltip, and only when you hover it.
 local _, ns = ...
 

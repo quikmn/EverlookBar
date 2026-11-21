@@ -1,4 +1,4 @@
--- Everlook Bar: layout maths. Pure functions, no game API, so the tests can check them directly.
+-- EverlookDB Bar: layout maths. Pure functions, no game API, so the tests can check them directly.
 -- Screen coordinates: x from the left, y from the bottom, in UIParent units. Positions inside a bar: x from its left,
 -- y downwards from its top (0, 1, 2...), the way the bar code anchors buttons with TOPLEFT.
 local _, ns = ...

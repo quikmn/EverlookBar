@@ -1,5 +1,5 @@
 ## Interface: 16001
-## Title: Everlook Bar
+## Title: EverlookDB Bar
 ## Notes: Info bars for LibDataBroker plugins (XP, reputation, professions, performance, location, durability, mail, bags, quests, gold, clock, calendar) and a clean minimap.
 ## Author: quikmn
 ## Version: 0.2.2

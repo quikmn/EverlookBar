@@ -1,4 +1,4 @@
--- Everlook Bar: location. Zone and subzone (Southshore Inn, Tarren Mill) from zone events, coordinates with one
+-- EverlookDB Bar: location. Zone and subzone (Southshore Inn, Tarren Mill) from zone events, coordinates with one
 -- decimal from C_Map. Coordinates are read on the shared ticker only while you move (or ride a taxi); standing
 -- still costs nothing. Where the game hides your position (most instances) the coordinates are left out.
 local _, ns = ...

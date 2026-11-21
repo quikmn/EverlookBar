@@ -1,4 +1,4 @@
--- Everlook Bar: unlock mode. A grid over the screen; drag bars (to an edge, or anywhere), the minimap and the minimap
+-- EverlookDB Bar: unlock mode. A grid over the screen; drag bars (to an edge, or anywhere), the minimap and the minimap
 -- pieces set to "move"; drag plugins between bars and groups. Escape or Done locks again. Never in combat.
 local _, ns = ...
 local U = ns.Util

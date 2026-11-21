@@ -1,4 +1,4 @@
--- Everlook Bar: quest log. How full it is ("! 38/45"), yellow when only a few slots are left and red when full, so
+-- EverlookDB Bar: quest log. How full it is ("! 38/45"), yellow when only a few slots are left and red when full, so
 -- you see before a quest giver says your log is full. The limit is the game's own (C_QuestLog), never a guess.
 local _, ns = ...
 

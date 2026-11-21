@@ -1,4 +1,4 @@
--- Everlook Bar: XP mini bar. A thin bar of fixed width: current XP, rested XP as an overlay, the percentage as text.
+-- EverlookDB Bar: XP mini bar. A thin bar of fixed width: current XP, rested XP as an overlay, the percentage as text.
 -- Hidden at max level (or with XP gain switched off). Event driven: no ticker.
 local _, ns = ...
 local U = ns.Util

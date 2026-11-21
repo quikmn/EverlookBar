@@ -1,4 +1,4 @@
--- Everlook Bar: drag and drop on the settings window's Plugins page. Drag a plugin row (by its grip, or anywhere on
+-- EverlookDB Bar: drag and drop on the settings window's Plugins page. Drag a plugin row (by its grip, or anywhere on
 -- the row but its buttons) to another place in its group, to another group or bar, or down to "Not on a bar"; drag
 -- from there onto a bar to add it. A ghost of the row follows the cursor, a thin blue line shows where it lands and
 -- the group under the cursor lights up; the page scrolls near its top and bottom edges. Right-click or Escape

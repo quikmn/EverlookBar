@@ -1,11 +1,11 @@
--- Everlook Bar: core. Names, saved settings, the shared event frame, the shared ticker, safe calls and profiling.
+-- EverlookDB Bar: core. Names, saved settings, the shared event frame, the shared ticker, safe calls and profiling.
 local ADDON, ns = ...
 
 ------------------------------------------------------------------------
 -- The name. Renaming the addon: change these lines, the .toc Title, and (if the folder changes) the .toc file name,
 -- the folder and the SavedVariables line. ns.GLOBAL is the public table third parties use (EverlookBar.API).
 ------------------------------------------------------------------------
-ns.NAME = "Everlook Bar"
+ns.NAME = "EverlookDB Bar"
 ns.SLASH = "/ebar"
 ns.GLOBAL = "EverlookBar"
 ns.PREFIX = "EverlookBar" -- LDB names of the built-in plugins ("EverlookBar_XP") and global frame names

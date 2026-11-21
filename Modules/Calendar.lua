@@ -1,4 +1,4 @@
--- Everlook Bar: calendar. The date (or today's next event, or the time and date), a marker for pending invites,
+-- EverlookDB Bar: calendar. The date (or today's next event, or the time and date), a marker for pending invites,
 -- and the next days' events in the tooltip. Built on the game's own calendar (C_Calendar); read only, except when you
 -- answer an invite from the right-click menu.
 --

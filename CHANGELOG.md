@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- The addon is now called EverlookDB Bar (was Everlook Bar), like the rest of the EverlookDB family. Settings, commands and the folder stay the same.
+
 ## v0.2.2 (2026-11-21)
 - Bags, Calendar and Clock open through the game's own buttons (the backpack button, the calendar button), like Durability, Reputation, Quest log and Location already did, so nothing of Everlook Bar rubs off on Blizzard's bag frames or calendar. A bag item clicked in combat can no longer be blocked because the bar opened your bags.
 - Plugins that open a Blizzard panel now work in combat even when the mouse came onto them during the fight: when combat starts, each one gets its secure click. A plugin under the mouse when combat ends gets it at once, and the click stays right when a bar moves its plugins.

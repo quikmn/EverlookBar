@@ -1,4 +1,4 @@
-"""Run Everlook Bar's offline tests in Lua 5.1 (WoW's version) via lupa.
+"""Run EverlookDB Bar's offline tests in Lua 5.1 (WoW's version) via lupa.
 
 Usage: python -P tests/run.py
 """

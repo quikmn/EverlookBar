@@ -1,4 +1,4 @@
--- Everlook Bar: "Build your own plugin" in the settings window (/ebar). Addons can't open a browser, so the button
+-- EverlookDB Bar: "Build your own plugin" in the settings window (/ebar). Addons can't open a browser, so the button
 -- shows the guide's address in a box to copy, and under it one line to paste into an AI assistant: the guide as a
 -- single Markdown brief it can read and write a plugin from.
 local _, ns = ...
@@ -9,7 +9,7 @@ local G = {}
 ns.Guide = G
 G.URL = "https://everlookdb.com/ebar/plugins"
 G.BRIEF = "https://everlookdb.com/ebar/plugins.md"
-G.AI_LINE = "Read " .. G.BRIEF .. " and help me build a plugin for Everlook Bar."
+G.AI_LINE = "Read " .. G.BRIEF .. " and help me build a plugin for EverlookDB Bar."
 
 local win
 

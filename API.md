@@ -1,8 +1,8 @@
-# Everlook Bar for plugin authors
+# EverlookDB Bar for plugin authors
 
-Everlook Bar shows **LibDataBroker-1.1 (LDB)** plugins, like Titan Panel, ChocolateBar, Bazooka and ElvUI do. If your
-addon already has an LDB data object, it already works on Everlook Bar: the player adds it on the Plugins page or
-drags it onto a bar in unlock mode. Everlook Bar's own plugins (XP, Performance, Location...) are plain LDB objects and
+EverlookDB Bar shows **LibDataBroker-1.1 (LDB)** plugins, like Titan Panel, ChocolateBar, Bazooka and ElvUI do. If your
+addon already has an LDB data object, it already works on EverlookDB Bar: the player adds it on the Plugins page or
+drags it onto a bar in unlock mode. EverlookDB Bar's own plugins (XP, Performance, Location...) are plain LDB objects and
 use the same path you do.
 
 For the few things LDB cannot express, there is a small public API: `EverlookBar.API`.
@@ -27,7 +27,7 @@ local obj = ldb:NewDataObject("MyAddon", {
 obj.text = MyAddon.kills .. " kills"
 ```
 
-What Everlook Bar reads:
+What EverlookDB Bar reads:
 
 | Attribute | Use |
 |---|---|
@@ -36,17 +36,17 @@ What Everlook Bar reads:
 | `label` | shown before the text when the player turns Label on (Look button) |
 | `icon`, `iconCoords`, `iconR`, `iconG`, `iconB` | the icon and its tint |
 | `OnClick(frame, button)` | left, right, middle clicks. Without it, a right-click on your button opens the bar's settings |
-| `tooltip` | your own tooltip frame: Everlook Bar anchors and shows it |
+| `tooltip` | your own tooltip frame: EverlookDB Bar anchors and shows it |
 | `OnEnter(frame)`, `OnLeave(frame)` | you show your own tooltip (e.g. LibQTip) |
-| `OnTooltipShow(tooltip)` | fill the GameTooltip; Everlook Bar anchors it away from the bar's edge |
+| `OnTooltipShow(tooltip)` | fill the GameTooltip; EverlookDB Bar anchors it away from the bar's edge |
 
 Good to know:
 
-- Updates are cheap: Everlook Bar redraws a plugin at most once per frame however often you write `text`, and only
+- Updates are cheap: EverlookDB Bar redraws a plugin at most once per frame however often you write `text`, and only
   sets the text when it changed. Still, write `text` when your value changes, not every frame.
 - Your code runs protected. If `OnClick` or `OnTooltipShow` raises an error, only your button gets a small red
   marker and the error shows in its tooltip; the bar keeps working. Your code is not called again for that click.
-- Secret values (WoW Forever / Midnight rules): you may put a secret value in `text`. Everlook Bar passes it to the
+- Secret values (WoW Forever / Midnight rules): you may put a secret value in `text`. EverlookDB Bar passes it to the
   font string as it is and never compares, measures or does maths on it (the button keeps its last width).
 
 ## 2. EverlookBar.API
@@ -64,7 +64,7 @@ end
 meaning in every later version. New features come as new functions or new optional fields. Code written against
 version 1 keeps working.
 
-Add `## OptionalDeps: EverlookBar` to your .toc so Everlook Bar loads first when both are installed.
+Add `## OptionalDeps: EverlookBar` to your .toc so EverlookDB Bar loads first when both are installed.
 
 ### Version 1
 
@@ -116,10 +116,10 @@ Redraw your button now, for when your widget's data changed but your data object
 
 #### `API.SetHidden(ldbName, hidden)`
 Hide your button without taking it off its bar (the XP bar does this at max level). `false` shows it again.
-Returns `false` if Everlook Bar does not know that plugin yet.
+Returns `false` if EverlookDB Bar does not know that plugin yet.
 
 #### `API.Every(owner, interval, fn) -> task`
-Run `fn(task, now)` every `interval` seconds on Everlook Bar's one shared ticker (0.1 s resolution) instead of an
+Run `fn(task, now)` every `interval` seconds on EverlookDB Bar's one shared ticker (0.1 s resolution) instead of an
 OnUpdate script of your own. Errors are caught and shown on the button of `owner` (your LDB name). A task that fails
 50 times is stopped until /reload.
 
@@ -133,8 +133,8 @@ task:Cancel()           -- gone
 ```
 
 #### `API.RegisterSettings(owner, title, settings) -> get, set`
-Settings for your plugin: they appear in Everlook Bar's window (Built-in page, under your title) and in chat as
-`/ebar <owner>.<key> <value>`. Everlook Bar saves them.
+Settings for your plugin: they appear in EverlookDB Bar's window (Built-in page, under your title) and in chat as
+`/ebar <owner>.<key> <value>`. EverlookDB Bar saves them.
 
 - `owner`: a short id, letters, digits and `_` (`"myaddon"`).
 - `title`: what the window calls your section.
@@ -168,7 +168,7 @@ Where a plugin is, or `nil` when it is on no bar.
 #### `API.GetNumBars() -> number`
 How many bars there are.
 
-## 3. Rules Everlook Bar follows (and you can count on)
+## 3. Rules EverlookDB Bar follows (and you can count on)
 
 - One shared ticker for everything; no OnUpdate per plugin.
 - No frames are made per update; buttons are reused.

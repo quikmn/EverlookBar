@@ -1,4 +1,4 @@
--- Everlook Bar: durability. The lowest equipped item in percent; every slot in the tooltip. Event driven.
+-- EverlookDB Bar: durability. The lowest equipped item in percent; every slot in the tooltip. Event driven.
 local _, ns = ...
 
 local M = ns:NewModule({

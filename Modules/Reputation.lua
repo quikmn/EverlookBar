@@ -1,4 +1,4 @@
--- Everlook Bar: reputation bar. The XP bar's look for one faction, coloured by standing with the game's own colours
+-- EverlookDB Bar: reputation bar. The XP bar's look for one faction, coloured by standing with the game's own colours
 -- (FACTION_BAR_COLORS: red hostile, orange unfriendly, yellow neutral, green friendly and up). It follows the game's
 -- watched faction (the default) or a faction picked in the settings or with a right-click on the bar. Never hidden:
 -- at max level the XP bar steps aside and this one keeps its place next to it. Event driven: no ticker.
@@ -289,7 +289,7 @@ function M.Tooltip(tip)
 		tip:AddDoubleLine("Progress", "the highest standing", 0.9, 0.9, 0.9, 1, 1, 1)
 	end
 	tip:AddLine(" ")
-	ns.TipHint(tip, state.watched and "Following the game's watched faction." or "Chosen in Everlook Bar.")
+	ns.TipHint(tip, state.watched and "Following the game's watched faction." or "Chosen in EverlookDB Bar.")
 	ns.TipHint(tip, "Click: open the reputation panel. Right-click: choose the faction.")
 end
 

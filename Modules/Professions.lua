@@ -1,4 +1,4 @@
--- Everlook Bar: professions. Your skill in each profession ("Mining 187  Herb 150  Cook 225"), each one its own click
+-- EverlookDB Bar: professions. Your skill in each profession ("Mining 187  Herb 150  Cook 225"), each one its own click
 -- target: click one to open its window. Primary professions, Cooking, First Aid, Fishing and (if you like) Riding.
 -- Skills come from the game's skill list (C_SkillInfo); windows open through C_TradeSkillUI.OpenTradeSkill, which is
 -- not protected (Blizzard's own alerts call it). Gathering skills, Fishing and Riding have no window.

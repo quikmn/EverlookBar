@@ -1,4 +1,4 @@
--- Everlook Bar: clock. Off by default. Local or realm time; the text changes once a minute.
+-- EverlookDB Bar: clock. Off by default. Local or realm time; the text changes once a minute.
 local _, ns = ...
 
 local M = ns:NewModule({

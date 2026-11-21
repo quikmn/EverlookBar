@@ -1,10 +1,10 @@
--- Everlook Bar: clean minimap. Move and scale the minimap, square or round, an optional thin border; hide or move the
+-- EverlookDB Bar: clean minimap. Move and scale the minimap, square or round, an optional thin border; hide or move the
 -- zone text, day/night indicator, clock, coordinates and the tracking/calendar/mail decorations; collect every addon's
 -- minimap button into one small drawer (or hide them all).
 --
 -- Rules: nothing here runs in combat (it waits for combat to end). Blizzard's frames are never dragged directly; a
 -- mover of ours is dragged and the frame is re-anchored after. When another addon already manages the minimap
--- (BasicMinimap, SexyMap...) Everlook Bar steps aside for the parts they would fight over and says so once in chat.
+-- (BasicMinimap, SexyMap...) EverlookDB Bar steps aside for the parts they would fight over and says so once in chat.
 local _, ns = ...
 local U = ns.Util
 

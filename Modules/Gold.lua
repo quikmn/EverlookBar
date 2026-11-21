@@ -1,4 +1,4 @@
--- Everlook Bar: gold. Your money, and in the tooltip how much it changed this session. Nothing per hour.
+-- EverlookDB Bar: gold. Your money, and in the tooltip how much it changed this session. Nothing per hour.
 local _, ns = ...
 
 local M = ns:NewModule({

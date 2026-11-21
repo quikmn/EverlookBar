@@ -1,10 +1,10 @@
--- Everlook Bar: opening Blizzard panels without taint.
+-- EverlookDB Bar: opening Blizzard panels without taint.
 --
 -- Why: a panel opened from addon code runs its OnShow "tainted". The character panel's OnShow calls
 -- ShowStatusBarText on the player frame's health and mana bars, which writes their lockShow field. Written under
 -- taint, that field taints every later read: hovering the player frame then fails with "attempt to compare a secret
 -- number value (execution tainted by 'EverlookBar')" in TextStatusBar.lua (the saved error shows lockShow=1 and a
--- stack that starts in the bar's own OnEnter, with no Everlook Bar code in it).
+-- stack that starts in the bar's own OnEnter, with no EverlookDB Bar code in it).
 --
 -- How: a built-in plugin that opens a Blizzard panel gives its data object an `ebarSecure` function. When the mouse
 -- enters its button (out of combat), one secure action button is laid over it: its left click "clicks" the game's own

@@ -1,4 +1,4 @@
--- Everlook Bar: the settings window (/ebar), every setting also from chat, and the chat commands.
+-- EverlookDB Bar: the settings window (/ebar), every setting also from chat, and the chat commands.
 -- One definition per setting drives both the window widget and "/ebar <setting> <value>".
 local ADDON, ns = ...
 local UI = ns.UI
@@ -15,7 +15,7 @@ local app = UI:NewApp({
 	aliases = { "/everlookbar" },
 	frameName = ns.PREFIX,
 	tagline = "Your info bars and a clean minimap.",
-	aiAbout = "Everlook Bar puts info bars on the screen edges (or anywhere) and tidies the minimap. A bar holds plugins "
+	aiAbout = "EverlookDB Bar puts info bars on the screen edges (or anywhere) and tidies the minimap. A bar holds plugins "
 		.. "(LibDataBroker): built-in ones (XP, reputation, professions, gold, bags, clock, location, performance...) and "
 		.. "those of other addons. Each plugin sits on one bar, in its left, centre or right group, in one row. The bar.* "
 		.. "settings change one bar at a time (the one picked in the window, bar 1 at first); write bar2.edge to change "
@@ -100,7 +100,7 @@ app:Setting({ key = "bagGCD", type = "bool", label = "Hide the global cooldown s
 	get = function() return ns.db.hideBagGCD end, set = function(v) ns.db.hideBagGCD = v end,
 	keywords = { "bagnon", "bags", "cooldown", "gcd", "spin", "swipe" },
 	desc = "WoW Forever shows the global cooldown on every item in your bags after each spell. Real item cooldowns (potions, Hearthstone, trinkets) still show." })
-app:Setting({ key = "profiling", type = "bool", label = "Measure Everlook Bar's own time per plugin (for /ebar perf)", default = ns.DEFAULTS.profiling,
+app:Setting({ key = "profiling", type = "bool", label = "Measure EverlookDB Bar's own time per plugin (for /ebar perf)", default = ns.DEFAULTS.profiling,
 	get = function() return ns.db.profiling end, set = function(v) ns.db.profiling = v; ns.SetProfiling(v) end,
 	desc = "Times every call into a plugin. Costs a little itself; leave it off unless you are measuring." })
 
@@ -293,7 +293,7 @@ end
 
 app:Movable({ what = "bars, the minimap and plugins (Escape locks)", get = function() return not ns.Unlock.active end,
 	set = function(locked) if locked then ns.Unlock:Stop() else ns.Unlock:Start() end end })
-app:Command("perf", "perf", "Everlook Bar's own memory and CPU use", function() O:PrintPerf() end)
+app:Command("perf", "perf", "EverlookDB Bar's own memory and CPU use", function() O:PrintPerf() end)
 app:Command("bar", "bar <n> | bar add [edge] | bar delete <n>", "pick the bar that bar.* settings change; add or delete bars", function(rest)
 	local word, arg = U.Trim(rest):match("^(%S*)%s*(.*)$")
 	word = (word or ""):lower()

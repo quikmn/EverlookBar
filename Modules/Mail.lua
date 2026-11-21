@@ -1,4 +1,4 @@
--- Everlook Bar: mail. New mail yes or no; the senders the game reports (up to three) in the tooltip. Only your own
+-- EverlookDB Bar: mail. New mail yes or no; the senders the game reports (up to three) in the tooltip. Only your own
 -- mailbox: the game has no API for anyone else's.
 local _, ns = ...
 

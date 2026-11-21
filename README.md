@@ -1,8 +1,8 @@
-# Everlook Bar
+# EverlookDB Bar
 
 Info bars and a clean minimap for WoW Forever (1.60.1, interface 16001).
 
-![Everlook Bar](screenshots/bar.png)
+![EverlookDB Bar](screenshots/bar.png)
 *(screenshot to come)*
 
 ## What it does
@@ -35,7 +35,7 @@ right-click to lock); it snaps to screen edges and remembers where you put it. S
 thickness and colour, an optional zone line showing where you stand. Hide or move the zone text, the day/night
 indicator, the clock, Blizzard's coordinates and the tracking, calendar and mail pieces. Every addon's minimap button
 goes into one small drawer beside the minimap, with its own icon, tooltip and click, or is hidden. If another addon
-already manages the minimap (BasicMinimap, SexyMap...), Everlook Bar leaves the minimap frame alone and says so once in
+already manages the minimap (BasicMinimap, SexyMap...), EverlookDB Bar leaves the minimap frame alone and says so once in
 chat.
 
 ## Using it
@@ -47,7 +47,7 @@ chat.
   between bars and groups. A grid helps you line things up. Escape locks again.
 - `/ebar minimap unlock`, `lock`, `reset`: move the minimap on its own, or put it back in the top-right corner.
   `/ebar minimap scan` lists what the minimap module found and any other text shown around the minimap.
-- `/ebar perf` shows what Everlook Bar itself costs.
+- `/ebar perf` shows what EverlookDB Bar itself costs.
 
 ## Commands
 
@@ -90,14 +90,14 @@ plus the `.toc` (Title, SavedVariables, and the file name if the folder changes)
 
 ## Credits and license
 
-Everlook Bar is licensed under the GNU General Public License version 3 (GPL-3.0); the full text is in `LICENSE`.
-Every line of Everlook Bar is its own; it contains no code from Titan Panel, TomTom, ElvUI or any minimap addon.
+EverlookDB Bar is licensed under the GNU General Public License version 3 (GPL-3.0); the full text is in `LICENSE`.
+Every line of EverlookDB Bar is its own; it contains no code from Titan Panel, TomTom, ElvUI or any minimap addon.
 
 Bundled libraries, each under its own terms:
 
 - LibStub: public domain (see its header).
 - CallbackHandler-1.0: by the Ace3 Development Team, BSD-style licence in `Libs/CallbackHandler-1.0/LICENSE.txt`.
 - EverlookUI: the shared settings window of these addons.
-- `Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua` is Everlook Bar's own implementation of the public LibDataBroker 1.1
+- `Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua` is EverlookDB Bar's own implementation of the public LibDataBroker 1.1
   interface (GPL-3.0). The widely shared file carries no licence, so it is not bundled; this one is compatible with it
   and with every LDB plugin.

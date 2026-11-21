@@ -1,4 +1,4 @@
--- Everlook Bar: the public API, EverlookBar.API. For what LibDataBroker cannot say: custom widgets drawn inside a
+-- EverlookDB Bar: the public API, EverlookBar.API. For what LibDataBroker cannot say: custom widgets drawn inside a
 -- plugin's button, settings for a module, the shared ticker, and placement. See API.md.
 --
 -- Compatibility promise: API.VERSION only grows. A function, once published, keeps its name, arguments and meaning
@@ -52,7 +52,7 @@ function API.SetHidden(ldbName, hidden)
 	return true
 end
 
--- 1: run fn(task, now) every `interval` seconds on Everlook Bar's one shared ticker (0.1 s resolution).
+-- 1: run fn(task, now) every `interval` seconds on EverlookDB Bar's one shared ticker (0.1 s resolution).
 -- Returns a task with :SetActive(bool), :SetInterval(seconds) and :Cancel(). Errors in fn are caught and shown on
 -- the owner's button; `owner` is your LDB name (or any string naming you).
 function API.Every(owner, interval, fn)
@@ -65,7 +65,7 @@ end
 -- "/ebar <owner>.<key> <value>". owner: a short id ("myaddon"). title: what the window calls it.
 -- settings: { { key, type = "bool"|"number"|"choice"|"color"|"string", label, desc, default,
 --               min, max, step (numbers), choices = { { value, text } } (choice), onChange = function(value) } }
--- Values are saved by Everlook Bar per character profile. Returns get(key) and set(key, value) functions.
+-- Values are saved by EverlookDB Bar per character profile. Returns get(key) and set(key, value) functions.
 function API.RegisterSettings(owner, title, settings)
 	assert(isName(owner) and owner:match("^[%w_]+$"), "RegisterSettings: owner must be letters, digits or _")
 	assert(type(settings) == "table", "RegisterSettings: settings must be a table")
