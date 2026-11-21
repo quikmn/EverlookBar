@@ -775,36 +775,40 @@ end)
 
 step("minimap: Blizzard's mail event after we hid the mail icon (UPDATE_PENDING_MAIL regression)", function()
 	local mm = ns.modules.minimap
-	local mail = MinimapCluster.IndicatorFrame.MailFrame
+	-- the mail piece is the indicator frame (mail and crafting orders); the mail icon inside stays Blizzard's
+	local box = MinimapCluster.IndicatorFrame
+	local mail = box.MailFrame
 	eq(mm:Mode("mail"), "hide", "mail icon hidden by default")
+	check(not mm:PieceOn("mail"), "off by default")
 	MOCK.mail = true
 	MOCK.Fire("UPDATE_PENDING_MAIL") -- runs Blizzard's handler: SetShown + GetParent():Layout()
 	MOCK.Fire("CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS")
-	check((MinimapCluster.IndicatorFrame.__layouts or 0) >= 2, "Blizzard's Layout() ran on the real parent")
-	check(not mail:IsShown(), "still hidden after Blizzard showed it")
+	check((box.__layouts or 0) >= 2, "Blizzard's Layout() ran on the real parent")
+	check(not mail:IsVisible(), "still hidden after Blizzard showed it")
 	MOCK.BlizzardShowsAgain()
 	check(not MinimapZoneTextButton:IsShown() and not MinimapCluster.MinimapContainer.PlayerCoords:IsShown(), "Show() from Blizzard is undone")
-	check(not mail:IsShown(), "mail too")
-	-- "show" gives it back the way Blizzard wants it: mail waiting, so shown
-	ns:ModuleDB("minimap").elements.mail = "show"
-	mm:ApplyElements()
-	check(mail:IsShown(), "mail icon back (there is mail)")
-	ns:ModuleDB("minimap").elements.mail = nil
-	mm:ApplyElements()
-	check(not mail:IsShown(), "hidden again")
+	box:Show() -- Blizzard's own Show on the piece itself
+	check(not box:IsShown() and not mail:IsVisible(), "mail too")
+	-- on: there, on the minimap's edge; mail waiting, so the icon shows
+	mm:SetPieceOn("mail", true)
+	check(mail:IsVisible(), "mail icon back (there is mail)")
+	local _, rel = box:GetPoint(1)
+	eq(rel, Minimap, "anchored to the minimap, not to the corner strip")
+	eq(mail:GetParent(), box, "the icon keeps its parent")
+	eq(box:GetParent(), MinimapCluster, "the piece keeps its parent")
+	mm:SetPieceOn("mail", false)
+	check(not mail:IsVisible(), "hidden again")
 	MOCK.mail = false
 	MOCK.Fire("UPDATE_PENDING_MAIL")
-	ns:ModuleDB("minimap").elements.mail = "show"
-	mm:ApplyElements()
-	check(not mail:IsShown(), "no mail: Blizzard's wish (hidden) kept on show")
-	ns:ModuleDB("minimap").elements.mail = "move"
-	mm:ApplyElements()
-	eq(mail:GetParent(), MinimapCluster.IndicatorFrame, "moving keeps the parent")
-	MinimapCluster.IndicatorFrame.MailFrame:SetPoint("LEFT", MinimapCluster.IndicatorFrame, "LEFT", 0, 0) -- Blizzard's Layout()
-	local _, rel = mail:GetPoint(1)
+	mm:SetPieceOn("mail", true)
+	check(box:IsShown() and not mail:IsShown(), "no mail: the piece is on, Blizzard keeps its icon hidden")
+	-- Blizzard lays its header out again: the piece goes back to our place
+	box:ClearAllPoints(); box:SetPoint("TOPRIGHT", MinimapCluster, "TOPRIGHT", 0, 0)
+	_, rel = box:GetPoint(1)
 	eq(rel, Minimap, "re-anchored to the minimap after Blizzard's layout")
-	ns:ModuleDB("minimap").elements.mail = nil
+	ns:ModuleDB("minimap").pieceOn.mail = nil
 	mm:ApplyElements()
+	check(not box:IsShown(), "back to its default: off")
 	-- no piece of Blizzard's ever sits under a frame of ours
 	for _, w in ipairs(MOCK.widgets) do
 		local p = w.__parent
@@ -980,7 +984,15 @@ end)
 step("minimap: round and square masks, border behind the map", function()
 	local mm = ns.modules.minimap
 	local db = ns:ModuleDB("minimap")
-	eq(db.shape, "round", "round by default")
+	eq(db.shape, "square", "square for a new player")
+	eq(mm.defaults.shape, "square", "the default")
+	eq(Minimap.__mask, "Interface\\Buttons\\WHITE8X8", "square mask")
+	eq(GetMinimapShape(), "SQUARE")
+	-- a player who already had a shape keeps it: defaults only fill what is missing
+	local saved = ns.Util.FillDefaults({ shape = "round", scale = 1.2 }, mm.defaults)
+	eq(saved.shape, "round", "a saved round minimap stays round")
+	eq(ns.Util.FillDefaults({}, mm.defaults).shape, "square", "nothing saved: square")
+	db.shape = "round"; mm:Redraw()
 	eq(Minimap.__mask, "Interface\\AddOns\\EverlookBar\\Media\\MinimapRound", "our own round mask")
 	local f = io.open(ROOT .. "/Media/MinimapRound.tga", "rb")
 	check(f, "the round mask ships with the addon"); f:close()
@@ -1013,22 +1025,28 @@ local function drag(frame, dragged, left, bottom)
 	check(not dragged.__moving, "StopMovingOrSizing")
 end
 
-step("minimap: unlock, left-drag the map itself, lock (general unlock mode off)", function()
+step("minimap: Unlock to move, left-drag the map itself, Done", function()
 	local mm = ns.modules.minimap
 	local db = ns:ModuleDB("minimap")
-	check(not ns.Unlock.active, "general unlock mode is off")
+	check(not ns.Unlock.active, "edit mode is off")
 	check(not mm.unlocked, "locked after login")
 	check(not (mm.overlay and mm.overlay:IsShown()), "no mover while locked: clicks go to the map")
-	-- the first control on the minimap page is the unlock toggle
-	local src = assert(io.open(ROOT .. "/Options.lua")):read("*a")
-	local page = src:sub((src:find('app:Section("minimap"', 1, true)))
-	eq(page:match('app:Widget%(stack, "([^"]+)"'), "minimap.unlocked", "first control on the minimap page")
+	-- the minimap page starts with the Unlock to move button (the old switch is the same thing from chat)
+	ns.app:Open("minimap")
+	local row = ns.Options.unlockRow
+	check(row and row.buttons[1]:GetText() == "Unlock to move", "the button is on the minimap page")
+	row.buttons[1].__scripts.OnClick(row.buttons[1], "LeftButton")
+	check(ns.Unlock.active and mm.unlocked, "the button starts edit mode and unlocks the minimap")
+	eq(row.buttons[1]:GetText(), "Done moving", "and says how to end it")
+	row.buttons[1].__scripts.OnClick(row.buttons[1], "LeftButton")
+	check(not ns.Unlock.active and not mm.unlocked, "the button ends it")
+	ns.app:Close()
 	slash("minimap.unlocked on")
-	check(mm.unlocked, "unlocked from the setting")
+	check(ns.Unlock.active and mm.unlocked, "unlocked from the old setting: the same edit mode")
 	local ov = mm.overlay
 	check(ov:IsShown() and ov:IsMouseEnabled(), "mover over the map, taking the mouse")
 	eq(ov:GetFrameStrata(), "HIGH", "above the map and its buttons")
-	check(ov.handle and ov.lock, "handle with a lock button")
+	check(not ov.handle and not ov.lock, "no tab above the map any more (it sat under a top bar)")
 	-- drag: lands where dropped
 	drag(ov, mm.holder, 700, 500)
 	eq(db.point[1], 770, "x saved (centre)"); eq(db.point[2], 570, "y saved")
@@ -1042,21 +1060,20 @@ step("minimap: unlock, left-drag the map itself, lock (general unlock mode off)"
 	drag(ov, mm.holder, 1920 - 140 - 5, 300)
 	eq(db.point[1], 1920 - 70 - pad, "snapped to the right edge, border on screen")
 	db.snapEdges = false
-	-- dragged half off screen -> back on screen
-	drag(ov.handle, mm.holder, -60, 300)
+	-- the control in the middle of the map drags the map too; half off screen -> back on screen
+	drag(ns.Unlock.panel, mm.holder, -60, 300)
 	eq(db.point[1], 70 + mm:BorderPad(), "kept on screen, border included")
 	-- wheel: size in 5% steps, saved
 	ov.__scripts.OnMouseWheel(ov, 1)
 	eq(db.scale, 1.05, "wheel up"); eq(mm.holder:GetScale(), 1.05, "applied")
 	ov.__scripts.OnMouseWheel(ov, -1); ov.__scripts.OnMouseWheel(ov, -1)
 	eq(db.scale, 0.95, "wheel down")
-	-- right-click locks
-	ov.__scripts.OnClick(ov, "RightButton")
-	check(not mm.unlocked and not ov:IsShown(), "right-click locked it")
+	slash("minimap lock")
+	check(not mm.unlocked and not ov:IsShown() and not ns.Unlock.active, "chat lock ends edit mode")
 	slash("minimap unlock")
-	check(mm.unlocked, "chat unlock")
-	ov.lock.__scripts.OnClick(ov.lock, "LeftButton")
-	check(not mm.unlocked, "Lock button")
+	check(mm.unlocked and ns.Unlock.active, "chat unlock: edit mode")
+	slash("lock")
+	check(not mm.unlocked, "locked")
 	-- reset: asks first, the second time does it
 	slash("minimap reset")
 	eq(db.scale, 0.95, "asked first, nothing reset yet")
@@ -1070,19 +1087,21 @@ step("minimap: no moving in combat, says why; combat locks it", function()
 	local mm = ns.modules.minimap
 	MOCK.log = {}
 	MOCK.combat = true
-	check(not mm:SetUnlocked(true), "refused in combat")
-	check(logHas("can't be moved in combat"), "says why")
-	check(not mm.unlocked)
+	check(not ns.Unlock:Start(), "refused in combat")
+	check(logHas("can't move things in combat"), "says why")
+	check(not mm.unlocked and not ns.Unlock.active)
 	MOCK.combat = false
-	mm:SetUnlocked(true, true)
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	MOCK.log = {}
+	ns.Unlock:Start()
 	local ov = mm.overlay
 	ov.__scripts.OnDragStart(ov, "LeftButton")
-	MOCK.Fire("PLAYER_REGEN_ENABLED")
-	ns.Unlock:Start() -- unlock mode on as well: still one line
+	check(mm.holder.__moving, "dragging")
 	MOCK.Fire("PLAYER_REGEN_DISABLED")
-	check(not ns.Unlock.active, "unlock mode ended")
+	check(not ns.Unlock.active, "edit mode ended")
 	check(not mm.holder.__moving, "drag dropped when combat starts")
 	check(not mm.unlocked and not ov:IsShown(), "locked for combat")
+	check(not ns.Unlock.panel:IsShown(), "the control is gone")
 	local n = 0
 	for _, l in ipairs(MOCK.log) do if l:find("locked for combat", 1, true) then n = n + 1 end end
 	eq(n, 1, "told once")
@@ -1093,19 +1112,446 @@ step("minimap: no moving in combat, says why; combat locks it", function()
 	check(logHas("can't be moved in combat"))
 	MOCK.combat = false
 	mm:SetUnlocked(false, true)
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
 end)
 
-step("minimap: general unlock mode unlocks the minimap too, and locks it again", function()
+step("edit mode: the minimap, its pieces and the control; Done, Escape and Reset positions", function()
 	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	local U = ns.Unlock
+	db.shape = "square"; mm:Redraw()
+	mm:SetPieceOn("tracking", true); mm:SetPieceOn("mail", true)
+	check(U:Start(), "started")
+	check(U.active and mm.unlocked, "the minimap is unlocked with the rest")
+	-- the control: in the middle of the minimap, above everything, with Done (the one gold button) and Reset positions
+	local p = U.panel
+	check(p:IsShown() and p.onMap, "the control is shown on the map")
+	local point, rel, relPoint, x, y = p:GetPoint(1)
+	eq(point, "CENTER"); eq(rel, Minimap, "anchored to the minimap, so it follows it"); eq(relPoint, "CENTER"); eq(x, 0); eq(y, 0)
+	eq(p:GetFrameStrata(), "FULLSCREEN_DIALOG", "above the map, the pieces and the bars")
+	eq(p.done:GetText(), "Done"); eq(p.reset:GetText(), "Reset positions")
+	check(p.reset:IsShown(), "Reset positions is there")
+	check(p.hint:GetText():find("Drag the pieces", 1, true) and p.hint:GetText():find("snaps to the edge", 1, true), "one line of help")
+	-- a box over each piece that is on, none for one that is off
+	check(U.movers.tracking and U.movers.tracking:IsShown(), "tracking has a box")
+	check(U.movers.mail and U.movers.mail:IsShown(), "mail has a box")
+	check(not (U.movers.zone and U.movers.zone:IsShown()), "the zone name is off: no box")
+	local _, mrel = U.movers.tracking:GetPoint(1)
+	eq(mrel, Minimap, "the box is anchored to the minimap")
+	eq(U.movers.tracking.tag:GetText(), "Tracking", "with the piece's name")
+	-- the guide shows the shape's edge
+	eq(mm.overlay.guide.shape, "square", "square guide on a square map")
+	eq(mm.overlay.guide.half, 70 + mm:BorderPad(), "at the edge, border included")
+	db.shape = "round"; mm:Redraw()
+	eq(mm.overlay.guide.shape, "round", "round guide after the shape changed")
+	db.shape = "square"; mm:Redraw()
+	-- dragging a piece: it sticks to the edge and snaps to the corner; Shift puts it anywhere
+	local half = mm:Half()
+	mm:DragPieceTo("tracking", -half - 10, half + 4)
+	eq(db.piecePos.tracking.a, 135, "snapped to the top-left corner"); eq(db.piecePos.tracking.d, 0, "on the edge")
+	local tx, ty = mm:PieceXY("tracking")
+	eq(math.floor(tx + 0.5), -half); eq(math.floor(ty + 0.5), half)
+	local _, _, _, ox, oy = MiniMapTracking:GetPoint(1)
+	eq(math.floor(ox + 0.5), -half, "the piece itself went there"); eq(math.floor(oy + 0.5), half)
+	mm:DragPieceTo("tracking", 0, half + 40, true)
+	eq(db.piecePos.tracking.a, 90, "free: straight above"); eq(db.piecePos.tracking.d, 40, "40 px off the edge")
+	check(mm:IsMoved("tracking"), "it counts as moved")
+	-- the box's own drag reads the cursor
+	local mv = U.movers.mail
+	mv.__scripts.OnDragStart(mv, "LeftButton")
+	check(mv.dragging and mv.__scripts.OnUpdate, "dragging")
+	local cx, cy = Minimap:GetCenter()
+	MOCK.cursorX, MOCK.cursorY = cx + half + 20, cy + 2
+	mv.__scripts.OnUpdate(mv, 0.02)
+	eq(db.piecePos.mail.a, 0, "snapped to the middle of the right side")
+	mv.__scripts.OnDragStop(mv)
+	check(not mv.dragging and not mv.__scripts.OnUpdate, "dropped")
+	-- right-click a box: that piece back to its own place
+	mv.__scripts.OnClick(mv, "RightButton")
+	check(not mm:IsMoved("mail"), "right-click resets one piece")
+	-- Reset positions: asks first, then every piece and the minimap go back
+	db.scale = 1.3
+	p.reset.__scripts.OnClick(p.reset, "LeftButton")
+	check(mm:IsMoved("tracking"), "asked first")
+	p.reset.__scripts.OnClick(p.reset, "LeftButton")
+	check(not mm:IsMoved("tracking") and next(db.piecePos) == nil, "pieces back in their own places")
+	eq(db.scale, 1, "minimap back at 100%")
+	check(U.active, "still editing")
+	-- Done
+	p.done.__scripts.OnClick(p.done, "LeftButton")
+	check(not U.active and not mm.unlocked and not p:IsShown(), "Done ends it")
+	check(not U.movers.tracking:IsShown(), "boxes gone")
+	-- Escape (the control closes on Escape, which ends edit mode)
+	U:Start()
+	p.__scripts.OnKeyDown(p, "ESCAPE")
+	check(not U.active and not mm.unlocked, "Escape ends it")
+	-- another addon manages the minimap: a small panel in the middle of the screen, Done only
+	mm.stepAside = "SexyMap"
+	U:Start()
+	check(U.active and not mm.unlocked, "bars and plugins can still be moved")
+	check(not p.onMap, "not on the map")
+	point, rel = p:GetPoint(1)
+	eq(point, "CENTER"); eq(rel, UIParent, "centred on screen, never at the top or bottom edge")
+	check(not p.reset:IsShown(), "nothing of the minimap to reset")
+	check(not U.movers.tracking:IsShown(), "no boxes")
+	U:Stop()
+	mm.stepAside = nil
+	mm:SetPieceOn("tracking", false); mm:SetPieceOn("mail", false)
+	db.pieceOn.tracking, db.pieceOn.mail = nil, nil
+	db.shape = "round"; mm:Redraw()
+end)
+
+step("minimap pieces: where they sit, the same saved place on a round and a square map", function()
+	local mm = ns.modules.minimap
+	local function near(a, b, what) if math.abs(a - b) > 0.01 then error((what or "value") .. ": expected " .. b .. ", got " .. a, 2) end end
+	-- round: on the circle
+	local x, y = mm.PiecePoint(0, 0, "round", 100); near(x, 100); near(y, 0)
+	x, y = mm.PiecePoint(45, 0, "round", 100); near(x, 70.7107); near(y, 70.7107)
+	x, y = mm.PiecePoint(90, 16, "round", 100); near(x, 0); near(y, 116)
+	-- square: on the outline; the same angle is the corner
+	x, y = mm.PiecePoint(45, 0, "square", 100); near(x, 100); near(y, 100)
+	x, y = mm.PiecePoint(90, 16, "square", 100); near(x, 0); near(y, 116, "the same distance above the top side")
+	x, y = mm.PiecePoint(60, 0, "square", 100); near(y, 100, "on the top side"); near(x, 57.735)
+	x, y = mm.PiecePoint(20, 10, "square", 100); near(x, 110, "10 px outside the right side")
+	-- there and back
+	for _, shape in ipairs({ "round", "square" }) do
+		for _, pt in ipairs({ { 30, -80 }, { -120, 10 }, { 5, 150 }, { -60, -60 } }) do
+			local a, d = mm.PieceFromXY(pt[1], pt[2], shape, 100)
+			local bx, by = mm.PiecePoint(a, d, shape, 100)
+			near(bx, pt[1], shape .. " x"); near(by, pt[2], shape .. " y")
+		end
+	end
+	-- no saved place ever lands inside the map or floats off it when the shape changes
+	for a = 0, 350, 10 do
+		local rx, ry = mm.PiecePoint(a, 0, "round", 100)
+		near(math.sqrt(rx * rx + ry * ry), 100, "round: on the ring")
+		local sx, sy = mm.PiecePoint(a, 0, "square", 100)
+		near(math.max(math.abs(sx), math.abs(sy)), 100, "square: on the outline")
+	end
+	-- snap points
+	eq(mm.SnapAngle(41, "square"), 45, "a corner pulls from 10 degrees")
+	eq(mm.SnapAngle(36, "square"), 45); eq(mm.SnapAngle(33, "square"), 33, "further away it slides along the side")
+	eq(mm.SnapAngle(93, "square"), 90, "the middle of a side"); eq(mm.SnapAngle(97, "square"), 97)
+	eq(mm.SnapAngle(358, "square"), 0); eq(mm.SnapAngle(-44, "square"), 315)
+	eq(mm.SnapAngle(47, "round"), 45, "round: every 45 degrees"); eq(mm.SnapAngle(60, "round"), 60, "else anywhere on the ring")
+	eq(mm.SnapAngle(178, "round"), 180)
+end)
+
+step("minimap pieces: defaults, every switch on and off, drawn above the map", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	-- defaults: everything off but the dungeon difficulty flag; each piece has its own place on the edge
+	local seen = {}
+	for _, e in ipairs(mm.ELEMENTS) do
+		eq(mm:PieceOn(e.key), e.key == "difficulty", e.key .. " default")
+		check(type(e.label) == "string" and type(e.desc) == "string" and e.short, e.key .. " has a name and a line of help")
+		if not e.fixed then
+			local a, d = mm:PiecePos(e.key)
+			eq(a, e.a, e.key .. " default angle"); eq(d, e.d)
+			local id = a .. "/" .. d
+			check(not seen[id], e.key .. " shares its default place with " .. tostring(seen[id]))
+			seen[id] = e.key
+			check(not mm:IsMoved(e.key), e.key .. " not moved")
+		end
+	end
+	-- what this (mock) client has
+	for _, k in ipairs({ "zone", "tracking", "mail", "calendar", "daynight", "clock", "coords", "zoom", "compartment" }) do
+		check(mm:Present(k), k .. " is in this client")
+	end
+	check(not mm:Present("worldmap") and not mm:Present("difficulty"), "no world map button or difficulty flag here")
+	-- the calendar button is the calendar piece, not day/night
+	eq(mm:Find(mm.ELEMENT.calendar)[1], GameTimeFrame, "GameTimeFrame is the calendar button")
+	eq(mm:Find(mm.ELEMENT.daynight)[1], MinimapCluster.Diel, "the dial is day/night")
+	-- every switch works at once, both ways, from the setting itself
+	local level = Minimap:GetFrameLevel()
+	for _, k in ipairs({ "zone", "tracking", "mail", "calendar", "daynight", "clock", "coords", "compartment" }) do
+		local obj = mm:Find(mm.ELEMENT[k])[1]
+		check(not obj:IsShown(), k .. " hidden while off")
+		slash("minimap." .. k .. " on")
+		check(obj:IsShown(), k .. " shown at once")
+		local point, rel, relPoint, x, y = obj:GetPoint(1)
+		eq(point, "CENTER", k); eq(rel, Minimap, k .. " anchored to the minimap"); eq(relPoint, "CENTER")
+		local px, py = mm:PieceXY(k)
+		eq(x, px, k .. " x"); eq(y, py, k .. " y")
+		check(obj:GetFrameLevel() > level, k .. " drawn above the map")
+		eq(obj:GetFrameStrata(), Minimap:GetFrameStrata(), k .. " in the map's strata")
+		check(math.sqrt(x * x + y * y) >= 70, k .. " on the edge, not inside the map")
+		slash("minimap." .. k .. " off")
+		check(not obj:IsShown(), k .. " hidden at once")
+		db.pieceOn[k] = nil
+	end
+	-- "show" and "hide" still work as words (old macros)
+	slash("minimap.clock show"); check(TimeManagerClockButton:IsShown(), "show = on")
+	slash("minimap.clock hide"); check(not TimeManagerClockButton:IsShown(), "hide = off")
+	db.pieceOn.clock = nil
+	-- a piece keeps the minimap's scale
+	db.scale = 1.5; mm:Redraw()
+	mm:SetPieceOn("tracking", true)
+	eq(MiniMapTracking:GetScale(), 1.5, "scaled with the minimap (its parent is the corner strip)")
+	db.scale = 1; mm:Redraw()
+	eq(MiniMapTracking:GetScale(), 1, "and back")
+	mm:SetPieceOn("tracking", false); db.pieceOn.tracking = nil
+	-- zoom buttons: the game shows them only under the mouse; switched on they stay
+	local zin, zout = Minimap.ZoomIn, Minimap.ZoomOut
+	check(not zin:IsShown() and not zout:IsShown(), "hidden (the game hides them, and they are off)")
+	zin:Show(); check(not zin:IsShown(), "off: the game's Show on mouse-over is undone")
+	mm:SetPieceOn("zoom", true)
+	check(zin:IsShown() and zout:IsShown(), "on: both shown at once")
+	zin:Hide(); zout:SetShown(false)
+	check(zin:IsShown() and zout:IsShown(), "and they stay when the mouse leaves the map")
+	local _, _, _, ix, iy = zin:GetPoint(1)
+	local _, _, _, ox, oy = zout:GetPoint(1)
+	check(ix > ox and iy > oy, "plus up and right of minus")
+	mm:SetPieceOn("zoom", false)
+	check(not zin:IsShown() and not zout:IsShown(), "off again")
+	db.pieceOn.zoom = nil
+	-- the game's ring art is for a round map only
+	db.shape = "round"; mm:Redraw()
+	mm:SetPieceOn("ringart", true)
+	check(mm:PieceShown("ringart"), "round: shown")
+	db.shape = "square"; mm:Redraw()
+	check(not mm:PieceShown("ringart"), "square: not shown, whatever the switch says")
+	db.shape = "round"; db.pieceOn.ringart = nil; mm:Redraw()
+end)
+
+step("minimap pieces: a new shape, size or border moves them with the edge", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	local function at(obj) local _, _, _, x, y = obj:GetPoint(1); return math.floor(x + 0.5), math.floor(y + 0.5) end
+	db.shape, db.border, db.borderSize, db.scale = "round", true, 2, 1
+	mm:Redraw()
+	mm:SetPieceOn("tracking", true) -- default: 135 degrees, on the edge
+	mm:SetPieceOn("calendar", true)
+	db.piecePos.calendar = { a = 60, d = 10 } -- a saved place
+	mm:ApplyElements()
+	local half = 72
+	eq(mm:Half(), half, "half the map plus its border")
+	local x, y = at(MiniMapTracking)
+	eq(x, -51, "round: on the ring at 135 degrees"); eq(y, 51)
+	local cx, cy = at(GameTimeFrame)
+	eq(cx, 41, "round: 10 px outside the ring at 60 degrees"); eq(cy, 71)
+	-- square: the same saved places, now on the square's outline (the shape setting re-places them)
+	slash("minimap.shape square")
+	x, y = at(MiniMapTracking)
+	eq(x, -half, "square: the top-left corner"); eq(y, half)
+	cx, cy = at(GameTimeFrame)
+	eq(cy, half + 10, "square: 10 px above the top side"); eq(cx, 47)
+	eq(db.piecePos.calendar.a, 60, "the saved place itself did not change"); eq(db.piecePos.calendar.d, 10)
+	-- a thicker border pushes the edge out
+	slash("minimap.bordersize 6")
+	x, y = at(MiniMapTracking)
+	eq(x, -76, "border 6: edge at 76"); eq(y, 76)
+	slash("minimap.border off")
+	x, y = at(MiniMapTracking)
+	eq(x, -70, "no border: the map's own edge"); eq(y, 70)
+	-- the mouse wheel in edit mode: a bigger map, the pieces keep to its edge and its scale
 	ns.Unlock:Start()
-	check(mm.unlocked, "unlocked with the rest")
+	mm.overlay.__scripts.OnMouseWheel(mm.overlay, 1)
+	eq(db.scale, 1.05)
+	eq(MiniMapTracking:GetScale(), 1.05, "the piece is scaled with the map")
+	x, y = at(MiniMapTracking)
+	eq(x, -70, "still on the corner (in the map's own units)"); eq(y, 70)
+	eq(mm.overlay.guide.half, 70, "the guide follows")
 	ns.Unlock:Stop()
-	check(not mm.unlocked, "locked with the rest")
-	-- unlocked on its own first: general lock leaves it as it was
-	mm:SetUnlocked(true, true)
-	ns.Unlock:Start(); ns.Unlock:Stop()
-	check(mm.unlocked, "still unlocked")
-	mm:SetUnlocked(false, true)
+	-- back to round: on the ring again
+	slash("minimap.shape round")
+	x, y = at(MiniMapTracking)
+	eq(x, -49, "round again: on the ring"); eq(y, 49)
+	db.shape, db.border, db.borderSize, db.scale = "round", true, 2, 1
+	db.piecePos.calendar = nil
+	mm:SetPieceOn("tracking", false); mm:SetPieceOn("calendar", false)
+	db.pieceOn.tracking, db.pieceOn.calendar = nil, nil
+	mm:Redraw()
+end)
+
+step("minimap pieces: old show / hide / move settings are migrated, never dropped", function()
+	local mm = ns.modules.minimap
+	-- 0.2.2: elements[key] = mode, elementPos[key] = { x, y } from the minimap's centre
+	local old = { shape = "round", scale = 1.2, border = true,
+		elements = { zone = "show", mail = "move", tracking = "move", clock = "hide", daynight = "show", compartment = "hide", bogus = "show" },
+		elementPos = { mail = { -80, 60 }, tracking = { 0, 0 } } }
+	mm.MigratePieces(old, 70)
+	eq(old.pieceOn.zone, true, "show -> on")
+	eq(old.pieceOn.mail, true, "move -> on")
+	eq(old.pieceOn.clock, false, "hide -> off")
+	eq(old.pieceOn.compartment, false)
+	eq(old.pieceOn.bogus, nil, "unknown keys ignored")
+	eq(old.pieceOn.coords, nil, "never set: still the default")
+	-- the moved piece is where it was
+	local p = old.piecePos.mail
+	check(p, "the dragged place is kept")
+	local x, y = mm.PiecePoint(p.a, p.d, "round", 70)
+	check(math.abs(x + 80) < 1 and math.abs(y - 60) < 1, "at the same spot: " .. x .. ", " .. y)
+	eq(old.piecePos.tracking, nil, "\"move\" never dragged (it sat in the middle of the map): its default place")
+	eq(old.pieceOn.tracking, true)
+	eq(old.piecePos.zone, nil, "show: default place")
+	-- GameTimeFrame (the calendar button) used to follow day/night
+	eq(old.pieceOn.calendar, true, "calendar button follows the old day/night setting")
+	eq(old.pieceOn.daynight, true)
+	eq(old.elements, nil, "old tables gone once moved over"); eq(old.elementPos, nil)
+	eq(old.shape, "round", "the saved shape stays"); eq(old.scale, 1.2)
+	-- again: nothing changes (and a choice made since is not overwritten)
+	old.pieceOn.zone = false
+	mm.MigratePieces(old, 70)
+	eq(old.pieceOn.zone, false)
+	-- a square minimap: the same spot on the square
+	local sq = { shape = "square", elements = { mail = "move", calendar = "show", daynight = "hide" }, elementPos = { mail = { 90, 20 } } }
+	mm.MigratePieces(sq, 70)
+	x, y = mm.PiecePoint(sq.piecePos.mail.a, sq.piecePos.mail.d, "square", 70)
+	check(math.abs(x - 90) < 1 and math.abs(y - 20) < 1, "square: same spot")
+	eq(sq.pieceOn.calendar, true, "an explicit calendar setting wins over day/night")
+	-- a new player: empty tables, defaults apply
+	local new = {}
+	mm.MigratePieces(new, 70)
+	check(next(new.pieceOn) == nil and next(new.piecePos) == nil, "nothing invented for a new player")
+	-- the live settings went through it at load
+	local db = ns:ModuleDB("minimap")
+	check(type(db.pieceOn) == "table" and type(db.piecePos) == "table" and db.elements == nil, "live settings migrated")
+end)
+
+step("minimap pieces: combat. A switch works in combat; what the game locks waits and the page says so", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	local cal, track = GameTimeFrame, MiniMapTracking
+	MOCK.combat = true
+	-- an ordinary piece: at once, also in combat
+	slash("minimap.calendar on")
+	check(cal:IsShown(), "shown in combat")
+	check(not mm:Waiting(), "nothing waiting")
+	slash("minimap.calendar off")
+	check(not cal:IsShown(), "hidden in combat")
+	-- a piece the game protects in combat: never touched in it, applied when combat ends
+	track.__protected = true
+	slash("minimap.tracking on")
+	check(not track:IsShown(), "not touched in combat")
+	check(mm.waiting.tracking and mm:Waiting(), "it waits, and the page can say so")
+	MOCK.Fire("PLAYER_REGEN_DISABLED")
+	MOCK.combat = false
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	check(track:IsShown(), "shown when combat ends")
+	local _, rel = track:GetPoint(1)
+	eq(rel, Minimap, "and placed")
+	check(not mm:Waiting(), "nothing waiting any more")
+	-- the other way round
+	MOCK.combat = true
+	slash("minimap.tracking off")
+	check(track:IsShown() and mm.waiting.tracking, "still there in combat, waiting")
+	-- the newest choice wins
+	slash("minimap.tracking on"); slash("minimap.tracking off")
+	MOCK.combat = false
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	check(not track:IsShown(), "hidden when combat ends")
+	-- the minimap frame itself (shape, size) always waits for combat to end
+	MOCK.combat = true
+	slash("minimap.shape square")
+	check(mm:Waiting(), "a shape change waits")
+	eq(GetMinimapShape(), "SQUARE", "the setting is saved")
+	check(Minimap.__mask ~= mm.MASKS.square, "the map itself not touched yet")
+	MOCK.combat = false
+	MOCK.Fire("PLAYER_REGEN_ENABLED")
+	eq(Minimap.__mask, mm.MASKS.square, "applied after combat")
+	check(not mm:Waiting())
+	track.__protected = nil
+	db.pieceOn.tracking, db.pieceOn.calendar = nil, nil
+	db.shape = "round"; mm:Redraw()
+end)
+
+step("minimap page: a short list of pieces, each with a picture, Reset and a switch; the search finds them", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	local wasShown = ns.app:IsShown()
+	if not wasShown then slash("") end
+	ns.app:Open("minimap")
+	local function rowOf(key)
+		for _, m in ipairs(ns.app:Search(mm.ELEMENT[key].label)) do
+			if m.entry.info and m.entry.info.key == "minimap." .. key then return m.entry.frame end
+		end
+	end
+	local row = rowOf("mail")
+	check(row and row.switch and row.reset and row.art, "the mail row: picture, Reset, switch")
+	ns.app:Search("")
+	check(not rowOf("worldmap"), "a piece this game version lacks has no row")
+	ns.app:Search("")
+	-- the search finds a piece by a plain word
+	local found = false
+	for _, m in ipairs(ns.app:Search("letter")) do if m.entry.info and m.entry.info.key == "minimap.mail" then found = true end end
+	check(found, "\"letter\" finds the mail icon")
+	found = false
+	for _, m in ipairs(ns.app:Search("unlock")) do if m.entry.info and m.entry.info.key == "minimap.unlocked" then found = true end end
+	check(found, "\"unlock\" finds the Unlock to move button")
+	ns.app:Search("")
+	-- the row's switch is the setting; Reset is only for a moved piece
+	row.__scripts.OnClick(row, "LeftButton")
+	check(mm:PieceOn("mail") and MinimapCluster.IndicatorFrame:IsShown(), "the row's switch shows the piece at once")
+	check(row.reset:GetAlpha() < 1, "Reset greyed: not moved")
+	mm:DragPieceTo("mail", 0, 200, true)
+	row:Refresh()
+	eq(row.reset:GetAlpha(), 1, "Reset lit once it is moved")
+	check(row.desc:GetText():find("Moved", 1, true), "and the row says so")
+	row.reset.__scripts.OnClick(row.reset, "LeftButton")
+	check(not mm:IsMoved("mail"), "Reset puts it back")
+	row.__scripts.OnClick(row, "LeftButton")
+	check(not mm:PieceOn("mail") and not MinimapCluster.IndicatorFrame:IsShown(), "and off again")
+	db.pieceOn.mail = nil
+	-- another addon manages the minimap: said once on the page, the pieces greyed out
+	mm.stepAside = "SexyMap"
+	ns.app:Refresh()
+	check(ns.app:GetSetting("minimap.mail").disabled(), "greyed out")
+	check(ns.app:GetSetting("minimap.shape").disabled(), "the shape too")
+	local src = assert(io.open(ROOT .. "/Options.lua")):read("*a")
+	local page = src:sub((src:find('app:Section("minimap"', 1, true)))
+	local _, n = page:gsub("is managing the minimap", "")
+	eq(n, 1, "said in one place")
+	mm.stepAside = nil
+	ns.app:Refresh()
+	check(not ns.app:GetSetting("minimap.mail").disabled(), "back")
+	if not wasShown then slash("") end
+end)
+
+step("minimap: dropped, resized or given a piece, it stays clear of the bars (and its pieces with it)", function()
+	local mm = ns.modules.minimap
+	local db = ns:ModuleDB("minimap")
+	db.shape, db.scale, db.border, db.borderSize = "square", 1, true, 2
+	mm:Redraw()
+	-- the room the bars take: one top bar, 22 high
+	local inset = mm.BarInsets()
+	eq(inset[1], 0, "left"); eq(inset[2], 0, "right"); eq(inset[3], 22, "the top bar"); eq(inset[4], 0, "bottom")
+	-- pure: kept inside the screen less the insets
+	local x, y = mm.SnapCenter(1900, 1075, 144, 144, 1920, 1080, 0, { 0, 0, 22, 0 })
+	eq(x, 1920 - 72, "on screen"); eq(y, 1080 - 22 - 72, "under the top bar, not behind it")
+	x, y = mm.SnapCenter(500, 500, 144, 144, 1920, 1080, 0, { 0, 0, 22, 0 })
+	eq(x, 500, "left alone in the open"); eq(y, 500)
+	x, y = mm.SnapCenter(1900, 1075, 144, 144, 1920, 1080, 0)
+	eq(y, 1080 - 72, "no insets: the screen only, as before")
+	-- dropped at the very top in edit mode: flush under the bar
+	ns.Unlock:Start()
+	drag(mm.overlay, mm.holder, 900, 1080 - 100)
+	eq(db.point[2], 1080 - 22 - 72, "dropped at the top: under the bar")
+	-- the zone name sits above the map: with it on, the map leaves room for it too
+	MinimapZoneTextButton.__w, MinimapZoneTextButton.__h = 175, 12
+	mm:SetPieceOn("zone", true)
+	local _, _, top = mm:Overhang()
+	check(top > 0, "the zone name sticks out above the map")
+	drag(mm.overlay, mm.holder, 900, 1080 - 100)
+	eq(db.point[2], 1080 - 22 - 72 - top, "room for the zone name under the bar")
+	-- the size in the control follows the mouse wheel
+	check(ns.Unlock.panel.size:GetText():find("100%", 1, true), "the control shows the size")
+	mm.overlay.__scripts.OnMouseWheel(mm.overlay, 1)
+	check(ns.Unlock.panel.size:GetText():find("105%", 1, true), "and follows the wheel")
+	check(db.point[2] <= 1080 - 22 - 72 * 1.05 - top * 1.05 + 1, "a bigger map still clear of the bar")
+	ns.Unlock:Stop()
+	-- a piece switched on while the map is flush under the bar: the map makes room
+	mm:SetPieceOn("zone", false); db.pieceOn.zone = nil
+	db.scale = 1; db.point = { 900, 1080 - 22 - 72 }; mm:Redraw()
+	check(not mm:KeepClear(), "clear as it is: nothing moves")
+	slash("minimap.zone on")
+	eq(db.point[2], 1080 - 22 - 72 - top, "moved down for the zone name")
+	slash("minimap.zone off"); db.pieceOn.zone = nil
+	-- a minimap saved under a bar is left where it is at login (only a drop, a resize or a new piece moves it)
+	db.point = { 900, 1080 - 72 }; mm:ApplyFrame()
+	eq(db.point[2], 1080 - 72, "a saved place is not changed by loading")
+	db.shape = "round"; db.point = nil
+	slash("minimap reset"); slash("minimap reset")
 end)
 
 step("minimap: a protected piece shown by Blizzard in combat is hidden after combat, never touched in it", function()
@@ -1127,6 +1573,7 @@ step("minimap: a protected piece shown by Blizzard in combat is hidden after com
 	MOCK.blizzardCall = false
 	check(not track.__touchedInCombat, "not hidden by us in combat")
 	check(track:IsShown(), "stays shown until combat ends")
+	check(mm.waiting.tracking, "and it is marked as waiting")
 	MOCK.combat = false
 	MOCK.Fire("PLAYER_REGEN_ENABLED")
 	check(not track:IsShown(), "hidden after combat")
@@ -1598,6 +2045,9 @@ step("every setting is in the window, so the search finds it by its own label", 
 		if type(label) == "string" then
 			for _, m in ipairs(ns.app:Search(label)) do if m.entry.info and m.entry.info.key == def.key then found = true end end
 		end
+		-- a piece around the minimap that this game version does not have has no row
+		local piece = def.key:match("^minimap%.(.+)$")
+		if piece and ns.modules.minimap.ELEMENT[piece] and not ns.modules.minimap:Present(piece) then found = true end
 		if not found then missing[#missing + 1] = def.key .. " [" .. tostring(label) .. "]" end
 	end
 	ns.app:Search("")

@@ -23,9 +23,9 @@ local app = UI:NewApp({
 	accent = ns.ACCENT,
 	position = function() return ns.db end,
 	buttons = {
-		{ label = "Unlock (move things)", text = function() return ns.Unlock.active and "Lock" or "Unlock (move things)" end,
+		{ label = "Unlock to move", text = function() return ns.Unlock.active and "Done moving" or "Unlock to move" end,
 			onClick = function() ns.Unlock:Toggle() end,
-			desc = "Drag bars to any edge or anywhere, move the minimap, drag plugins between bars. Escape locks again." },
+			desc = "Drag bars to any edge or anywhere, the minimap and the pieces around it, and plugins between bars. Done or Escape ends it." },
 	},
 })
 ns.app = app
@@ -36,7 +36,7 @@ local function relayout() ns.Host:RefreshAll() end
 local EDGES = {
 	{ value = "top", text = "Top of the screen" }, { value = "bottom", text = "Bottom of the screen" },
 	{ value = "left", text = "Left side (plugins stacked)" }, { value = "right", text = "Right side (plugins stacked)" },
-	{ value = "free", text = "Free: anywhere (drag it in unlock mode)" },
+	{ value = "free", text = "Free: anywhere (Unlock to move, then drag it)" },
 }
 local ORIENTS = { { value = "horizontal", text = "Horizontal" }, { value = "vertical", text = "Vertical (stacked)" } }
 local ALIGNS = { { value = "start", text = "Start (left / top)" }, { value = "center", text = "Centre" }, { value = "end", text = "End (right / bottom)" } }
@@ -64,7 +64,7 @@ barSetting({ key = "bar.name", field = "name", type = "string", label = "Name", 
 barSetting({ key = "bar.shown", field = "shown", type = "bool", label = "Show this bar" })
 barSetting({ key = "bar.edge", field = "edge", type = "choice", label = "Where", choices = EDGES, width = 300,
 	set = function(v) ns.Bars:SetEdge(ns.editBar, v) end, after = function() end,
-	desc = "Top and bottom bars run along the edge; left and right bars stack their plugins. In unlock mode you can drag a bar to any edge, or anywhere." })
+	desc = "Top and bottom bars run along the edge; left and right bars stack their plugins. Unlock to move lets you drag a bar to any edge, or anywhere." })
 barSetting({ key = "bar.orient", field = "orient", type = "choice", label = "Free bar direction", choices = ORIENTS, width = 300,
 	disabled = function() local b = bar(); return not b or b.edge ~= "free" end,
 	get = function() local b = bar(); return b and (b.orient or "horizontal") end })
@@ -92,7 +92,7 @@ barSetting({ key = "bar.strata", field = "strata", type = "choice", label = "Dra
 app:Setting({ key = "autoadd", type = "bool", label = "Put plugins from other addons on bar 1 when they appear", default = ns.DEFAULTS.autoAdd,
 	get = function() return ns.db.autoAdd end, set = function(v) ns.db.autoAdd = v end,
 	desc = "Off: new plugins wait on the Plugins page until you add them." })
-app:Setting({ key = "snap", type = "bool", label = "Snap to the grid in unlock mode", default = ns.DEFAULTS.snap,
+app:Setting({ key = "snap", type = "bool", label = "Snap bars to the grid while moving them", default = ns.DEFAULTS.snap,
 	get = function() return ns.db.snap end, set = function(v) ns.db.snap = v end })
 app:Setting({ key = "grid", type = "number", label = "Grid size (pixels)", min = 4, max = 64, default = ns.DEFAULTS.grid,
 	get = function() return ns.db.grid end, set = function(v) ns.db.grid = v end })
@@ -211,13 +211,15 @@ local function mmSetting(field, def)
 	def.disabled = def.disabled or function() return not mm.running or mm.stepAside ~= nil end
 	return app:Setting(def)
 end
-app:Setting({ key = "minimap.unlocked", type = "bool", label = "Unlock minimap (drag it with the left mouse button)",
-	chatLabel = "Unlock minimap",
-	get = function() return mm.unlocked end,
-	set = function(v) mm:SetUnlocked(v) end,
-	disabled = function() return not mm.running or mm.stepAside ~= nil end })
-mmSetting("scale", { type = "number", label = "Minimap size", min = 0.5, max = 2.5, step = 0.05, fmt = "%.2f" })
-mmSetting("snapEdges", { type = "bool", label = "Snap to screen edges when dropped", keywords = { "sticky", "magnet", "nudge", "edge" } })
+-- The old "Unlock minimap" switch: now the same as Unlock to move (bars, the minimap and its pieces together). Kept
+-- for chat ("/ebar minimap.unlocked on") and old macros; the page has the button instead.
+app:Setting({ key = "minimap.unlocked", type = "bool", label = "Unlock to move",
+	keywords = { "unlock", "lock", "move", "drag", "edit" },
+	get = function() return ns.Unlock.active end,
+	set = function(v) if v then ns.Unlock:Start() else ns.Unlock:Stop() end end })
+mmSetting("scale", { type = "number", label = "Minimap size", min = 0.5, max = 2.5, step = 0.05, fmt = "%.2f",
+	after = function() mm:KeepClear(); mmRedraw() end })
+mmSetting("snapEdges", { type = "bool", label = "Minimap snaps to the screen's edges when dropped", keywords = { "sticky", "magnet", "nudge", "edge" } })
 mmSetting("zoneLabel", { type = "choice", label = "Zone line on the minimap", width = 260, choices = {
 	{ value = "off", text = "Off" }, { value = "subzone", text = "Where you stand (subzone)" },
 	{ value = "zone", text = "The zone" }, { value = "both", text = "Zone: subzone" } } })
@@ -240,14 +242,25 @@ mmSetting("drawerCorner", { type = "choice", label = "Drawer button corner", wid
 	disabled = function() return not mm.running or mm.buttonRival ~= nil end })
 mmSetting("drawerCols", { type = "number", label = "Buttons per row in the drawer", min = 1, max = 12,
 	disabled = function() return not mm.running or mm.buttonRival ~= nil end })
-local MODES = { { value = "show", text = "Show (game's place)" }, { value = "hide", text = "Hide" }, { value = "move", text = "Move (unlock mode)" } }
+-- The pieces around the minimap: one on/off switch each ("/ebar minimap.mail on"). A piece this game version does
+-- not have, and everything while another addon manages the minimap, is greyed out.
+local function pieceDisabled(e)
+	if not mm.running or mm.stepAside ~= nil then return true end
+	if not mm:Present(e.key) then return true end
+	return e.key == "ringart" and ns:ModuleDB("minimap").shape == "square"
+end
 for _, e in ipairs(mm.ELEMENTS) do
-	app:Setting({ key = "minimap." .. e.key, type = "choice", label = e.label, choices = MODES, width = 220, default = e.default or "show",
-		desc = e.desc,
-		get = function() return mm:Mode(e.key) end,
-		set = function(v) ns:ModuleDB("minimap").elements[e.key] = v end,
-		disabled = function() return not mm.running or mm.stepAside ~= nil end,
-		after = function() if mm.running then ns.AfterCombat("minimap-elements", function() mm:ApplyElements() end); ns.Unlock:SyncMovers() end end })
+	app:Setting({ key = "minimap." .. e.key, type = "bool", label = e.label, default = e.default and true or false,
+		desc = e.desc, keywords = e.keywords, chatLabel = "Minimap: " .. e.label:lower(),
+		get = function() return mm:PieceOn(e.key) end,
+		set = function(v)
+			ns:ModuleDB("minimap").pieceOn[e.key] = v and true or false
+			-- a piece switched on next to a bar: the minimap makes room, so the piece is not under the bar
+			if v and mm.running and not InCombatLockdown() and mm:KeepClear() then mm:ApplyFrame() end
+			if mm.running then mm:ApplyElements() end
+			ns.Unlock:SyncMovers()
+		end,
+		disabled = function() return pieceDisabled(e) end })
 end
 
 ------------------------------------------------------------------------
@@ -297,7 +310,7 @@ local function findPlugin(text)
 	return exact or partial
 end
 
-app:Movable({ what = "bars, the minimap and plugins (Escape locks)", get = function() return not ns.Unlock.active end,
+app:Movable({ what = "bars, plugins, the minimap and the pieces around it (Done or Escape locks)", get = function() return not ns.Unlock.active end,
 	set = function(locked) if locked then ns.Unlock:Stop() else ns.Unlock:Start() end end })
 app:Command("perf", "perf", "EverlookDB Bar's own memory and CPU use", function() O:PrintPerf() end)
 app:Command("bar", "bar <n> | bar add [edge] | bar delete <n>", "pick the bar that bar.* settings change; add or delete bars", function(rest)
@@ -337,14 +350,14 @@ app:Command("remove", "remove <plugin>", "take a plugin off its bar", function(r
 	ns:Print(ns.Host:Title(name) .. " is off the bars.")
 end)
 app:Command("minimap", "minimap unlock | lock | reset | scan | grab <frame> | ignore <frame>",
-	"move the minimap; put it back; what the minimap module found; collect or skip a button by frame name", function(rest)
+	"move things (the same as unlock); put the minimap back; what the minimap module found; collect or skip a button by frame name", function(rest)
 	local word, arg = U.Trim(rest):match("^(%S*)%s*(.*)$")
 	word = (word or ""):lower()
 	local db = ns:ModuleDB("minimap")
 	if word == "unlock" or word == "move" then
-		mm:SetUnlocked(true)
+		ns.Unlock:Start()
 	elseif word == "lock" then
-		mm:SetUnlocked(false)
+		ns.Unlock:Stop()
 	elseif word == "reset" then
 		app:HandleReset("minimap")
 	elseif word == "grab" and arg ~= "" then
@@ -369,7 +382,7 @@ app:Reset("bars", "the bars (one top bar, plugins back in place)", function()
 	ns.Host:RefreshAll()
 end)
 app:Reset("all", "every " .. ns.NAME .. " setting (reloads the UI)", function() _G[ns.SAVED] = nil; ReloadUI() end)
-app:Reset("minimap", "the minimap's place and size", function() mm:ResetPosition() end)
+app:Reset("minimap", "the minimap's place and size, and the places of the pieces around it", function() ns.Unlock:ResetPositions() end)
 
 app:StatusLines(function()
 	local u, n = O:Usage(), 0
@@ -449,7 +462,7 @@ function O:AddBar(edge)
 	ns.editBar = ns.Bars:AddBar(spec)
 	ns.Host:RefreshAll()
 	app:Refresh()
-	ns:Print("added bar " .. ns.editBar .. " (" .. edge .. "). Put plugins on it on the Plugins page, or drag them there in unlock mode.")
+	ns:Print("added bar " .. ns.editBar .. " (" .. edge .. "). Put plugins on it on the Plugins page, or press Unlock to move and drag them there.")
 end
 
 function O:DeleteBar(i)
@@ -521,11 +534,11 @@ local function barPicker(stack)
 end
 
 app:Section("bars", "Bars", function(stack)
-	UI.Header(stack, "Bars", "As many bars as you like, on any edge or anywhere. Drag them in unlock mode, or set them here.")
+	UI.Header(stack, "Bars", "As many bars as you like, on any edge or anywhere. Press Unlock to move and drag them, or set them here.")
 	barPicker(stack)
 	UI.ButtonRow(stack, {
 		{ label = "New bar", style = "accent", width = 140, onClick = function() O:AddBar("bottom") end,
-			desc = "A new bar at the bottom of the screen. Move it in unlock mode or change Where below." },
+			desc = "A new bar at the bottom of the screen. Press Unlock to move and drag it, or change Where below." },
 		{ label = "Delete this bar", width = 150, confirm = true, onClick = function() O:DeleteBar(ns.editBar) end },
 	})
 	local function W(k) return app:Widget(stack, k) end
@@ -694,33 +707,138 @@ app:Section("modules", "Built-in", function(stack)
 	end
 end)
 
-app:Section("minimap", "Minimap", function(stack)
-	UI.Header(stack, "Clean minimap", "Unlock it, then drag the minimap itself. Nothing here changes in combat; it waits for combat to end.")
-	app:Widget(stack, "minimap.unlocked")
-	UI.Note(stack, function()
-		if mm.unlocked then
-			return "Unlocked: drag the minimap with the left mouse button, mouse wheel over it to resize. Right-click it or press Lock to lock. Clicks reach the map again once locked."
+-- One piece around the minimap as a row: a small picture of it, its name, Reset (back to its own place on the
+-- edge) and the on/off switch. The row is the setting's own switch (so the settings search finds it and chat sets
+-- it); a piece this game version does not have folds away.
+local PIECE_ICON, PIECE_RESET = 30, 58
+local function pieceRow(stack, e)
+	local T = stack.T
+	local f = app:Widget(stack, "minimap." .. e.key)
+	local art = f:CreateTexture(nil, "ARTWORK")
+	art:SetPoint("CENTER", f, "LEFT", 10, 0)
+	f.art = art
+	if not e.fixed then
+		local reset = UI.Button(f, "Reset", function()
+			mm:ResetPiece(e.key)
+			app:Refresh()
+		end, PIECE_RESET)
+		reset:SetHeight(22)
+		reset:SetPoint("RIGHT", f.switch, "LEFT", -10, 0)
+		f.reset = reset
+	end
+	-- room for the picture on the left and Reset on the right
+	local measure = f.eluiMeasure
+	f.eluiControlW = (f.eluiControlW or 36) + PIECE_ICON + (f.reset and (PIECE_RESET + 10) or 0)
+	f.eluiMeasure = function(self, width)
+		if self.absent then return 0 end
+		local h = measure(self, width)
+		local _, _, _, _, y = self.label:GetPoint(1)
+		self.label:ClearAllPoints()
+		self.label:SetPoint("TOPLEFT", self, "TOPLEFT", PIECE_ICON, y or 0)
+		return h
+	end
+	local refresh = f.Refresh
+	function f:Refresh()
+		-- not in this game version (and nothing to say about it): no row
+		local absent = mm.running and not mm.stepAside and not mm:Present(e.key)
+		if absent ~= (self.absent or false) then
+			self.absent = absent
+			self:SetShown(not absent)
 		end
-		return "Locked: clicks go to the map. " .. ns.SLASH .. " minimap unlock also works; moving waits until you are out of combat."
-	end)
-	UI.ButtonRow(stack, { { label = "Reset position", width = 140, onClick = function() mm:ResetPosition() end } })
-	app:Widget(stack, "minimap.enabled")
+		stack:SetHeightOf(self, self.eluiMeasure(self, stack.width))
+		if absent then return end
+		refresh(self)
+		local a = mm.running and mm:Preview(e.key) or nil
+		local w, h = 18, 18
+		if a and a.w and a.h and a.w > 0 and a.h > 0 then
+			local k = 20 / math.max(a.w, a.h)
+			w, h = math.max(8, a.w * k), math.max(8, a.h * k)
+		end
+		art:SetSize(w, h)
+		if a and a.atlas and art.SetAtlas then
+			art:SetTexCoord(0, 1, 0, 1)
+			art:SetAtlas(a.atlas)
+			art:SetVertexColor(1, 1, 1, 1)
+			art:Show()
+		elseif a and a.file then
+			art:SetTexture(a.file)
+			if a.coords and #a.coords >= 4 then art:SetTexCoord(unpack(a.coords)) else art:SetTexCoord(0, 1, 0, 1) end
+			art:SetVertexColor(1, 1, 1, 1)
+			art:Show()
+		else
+			UI.SetIcon(art, e.icon or "dot")
+			art:SetVertexColor(T.muted[1], T.muted[2], T.muted[3], 1)
+		end
+		if self.desc then
+			local text = e.desc
+			if mm.waiting[e.key] then
+				text = "|cffffd25aWaits for combat to end, then it is applied.|r"
+			elseif e.key == "ringart" and ns:ModuleDB("minimap").shape == "square" then
+				text = "For a round minimap only."
+			elseif mm:IsMoved(e.key) then
+				text = text .. " |cffffd25aMoved.|r"
+			end
+			self.desc:SetText(text)
+		end
+		if self.reset then self.reset:SetUsable(mm.running and not mm.stepAside and mm:IsMoved(e.key)) end
+	end
+	f:Refresh()
+	return f
+end
+O.PieceRow = pieceRow
+
+app:Section("minimap", "Minimap", function(stack)
+	UI.Header(stack, "Minimap", "Move and shape the minimap, and choose what sits around it.")
+	-- the page's one gold button, and Reset positions beside it (the row is the "minimap.unlocked" setting to the
+	-- settings search and to chat)
+	do
+		local row = CreateFrame("Frame")
+		row:SetParent(stack.parent)
+		local help = "Drag the minimap, the pieces around it, bars and plugins. Done (in the middle of the minimap) or Escape ends it."
+		local unlock = UI.Button(row, "Unlock to move", function() ns.Unlock:Toggle() end, 170, "accent")
+		unlock:SetPoint("LEFT", 0, 0)
+		local reset = UI.ConfirmButton(row, "Reset positions", function() ns.Unlock:ResetPositions(); app:Refresh() end, 170, "plain")
+		reset:SetPoint("LEFT", unlock, "RIGHT", 8, 0)
+		row.buttons = { unlock, reset }
+		row.searchInfo = { label = "Unlock to move / Reset positions", key = "minimap.unlocked",
+			desc = help .. " Reset positions: the minimap back in the top-right corner at 100%, every piece back in its own place.",
+			keywords = { "unlock", "lock", "move", "drag", "edit", "place", "position", "reset", "default", "corner" } }
+		function row:Refresh()
+			unlock:SetText(ns.Unlock.active and "Done moving" or "Unlock to move")
+			reset:SetUsable(mm.running and mm.stepAside == nil)
+		end
+		stack:Add(row, 26, 12)
+		row:Refresh()
+		O.unlockRow = row
+	end
 	UI.Note(stack, function()
-		if not mm.running then return "Off. Turning it off fully gives the minimap back after /reload." end
+		if not mm.running then
+			return "The clean minimap is off, so the game shows its own minimap. Turning it off fully gives the minimap back after /reload."
+		end
 		local s = ""
 		if mm.stepAside then
-			s = "|cffffd25a" .. mm.stepAside .. " is managing the minimap, so " .. ns.NAME .. " leaves the minimap frame alone.|r To use this page, disable "
+			s = "|cffffd25a" .. mm.stepAside .. " is managing the minimap, so " .. ns.NAME .. " leaves it alone and this page is greyed out.|r To use it, disable "
 				.. mm.stepAside .. " (Esc > AddOns) and /reload. "
 		end
-		if mm.buttonRival then s = s .. "|cffffd25a" .. mm.buttonRival .. " collects the minimap buttons, so the drawer is off.|r" end
-		return s
+		if mm.buttonRival then s = s .. "|cffffd25a" .. mm.buttonRival .. " collects the minimap buttons, so the drawer is off.|r " end
+		if s ~= "" then return s end
+		if mm:Waiting() then
+			return "|cffffd25aYou are in combat: what the game locks in combat is applied when combat ends.|r"
+		end
+		if ns.Unlock.active then
+			return "Moving: drag the minimap, the pieces around it, bars and plugins. Mouse wheel over the minimap changes its size. Done or Escape ends it."
+		end
+		return "Unlock to move, then drag the minimap and the pieces around it. Mouse wheel over the minimap changes its size."
 	end)
-	app:Widget(stack, "minimap.scale"); app:Widget(stack, "minimap.snapedges"); app:Widget(stack, "minimap.shape")
+	app:Widget(stack, "minimap.enabled")
+	UI.Header(stack, "Size and shape")
+	app:Widget(stack, "minimap.shape"); app:Widget(stack, "minimap.scale")
 	app:Widget(stack, "minimap.border"); app:Widget(stack, "minimap.bordersize"); app:Widget(stack, "minimap.bordercolor")
-	app:Widget(stack, "minimap.wheelzoom")
+	app:Widget(stack, "minimap.wheelzoom"); app:Widget(stack, "minimap.snapedges")
+	UI.Header(stack, "Pieces around the minimap", "Switch one on and it sits on the minimap's edge. To move it: Unlock to move, then drag it.")
+	for _, e in ipairs(mm.ELEMENTS) do pieceRow(stack, e) end
+	UI.Header(stack, "Zone line", "Our own line of text with where you are, instead of the game's zone name.")
 	app:Widget(stack, "minimap.zonelabel"); app:Widget(stack, "minimap.zonelabelpos")
-	UI.Header(stack, "Pieces around the minimap", "Blizzard's pieces: hide them, leave them, or move them (drag them in " .. ns.SLASH .. " unlock).")
-	for _, e in ipairs(mm.ELEMENTS) do app:Widget(stack, "minimap." .. e.key) end
 	UI.Note(stack, function()
 		local list = mm.running and mm:ForeignCoords() or {}
 		if #list == 0 then return "Still see text by the minimap? " .. ns.SLASH .. " minimap scan lists it with the addon it comes from." end
@@ -728,7 +846,7 @@ app:Section("minimap", "Minimap", function(stack)
 		for _, c in ipairs(list) do s = s .. "|cffffd25a" .. c.addon .. "|r " .. c.fix .. "\n" end
 		return s
 	end)
-	UI.Header(stack, "Addon buttons", "LibDBIcon buttons and loose buttons on the minimap.")
+	UI.Header(stack, "Addon buttons", "The minimap buttons other addons add.")
 	app:Widget(stack, "minimap.buttons"); app:Widget(stack, "minimap.drawercorner"); app:Widget(stack, "minimap.drawercols")
 	UI.ButtonRow(stack, { { label = "Look for buttons again", width = 190, onClick = function() mm:ApplyAll(); app:Refresh() end } })
 	UI.List(stack, {
@@ -754,11 +872,11 @@ app:Section("general", "General", function(stack)
 	UI.Stat(stack, "CPU per frame (since login)", function() local u = O:Usage(); return u.session and string.format("%.4f ms", u.session) or "not available" end)
 	UI.Header(stack, "Chat commands", "Everything here also works from chat.")
 	local s = ns.SLASH
-	UI.Note(stack, s .. "  this window\n" .. s .. " unlock / lock  move bars, the minimap and plugins\n"
+	UI.Note(stack, s .. "  this window\n" .. s .. " unlock / lock  move bars, plugins, the minimap and its pieces (the Unlock to move button)\n"
 		.. s .. " bar  list bars;  " .. s .. " bar 2  edit bar 2;  " .. s .. " bar add left  new bar\n"
 		.. s .. " bar2.edge right  change one bar setting directly\n"
 		.. s .. " plugins, " .. s .. " place gold 1 right, " .. s .. " remove gold\n"
-		.. s .. " minimap unlock / lock / reset  move the minimap, or put it back in the corner\n"
+		.. s .. " minimap.mail on  switch a piece around the minimap;  " .. s .. " minimap reset  put it all back\n"
 		.. s .. " minimap scan  what the minimap module found, and any text near the minimap\n"
 		.. s .. " perf  memory and CPU;  " .. s .. " status  bars, plugins, memory\n"
 		.. s .. " get  every setting (get bar.edge: one)\n" .. s .. " search <words>  find a setting\n"

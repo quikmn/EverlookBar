@@ -213,7 +213,16 @@ Minimap.__w, Minimap.__h = 140, 140
 Minimap.__left, Minimap.__bottom = 1760, 900
 MinimapZoneTextButton = newWidget("Button", "MinimapZoneTextButton", MinimapCluster)
 GameTimeFrame = newWidget("Button", "GameTimeFrame", MinimapCluster)
-MiniMapTracking = newWidget("Frame", "MiniMapTracking", Minimap)
+-- WoW Forever's cluster is the retail-style one: tracking, the zone name and the calendar button sit in a header
+-- strip of MinimapCluster (not on the map); the zoom buttons are the map's children, shown only under the mouse;
+-- there is no world map button and no instance difficulty flag. (The classic global names are kept for the tests.)
+MiniMapTracking = newWidget("Frame", "MiniMapTracking", MinimapCluster)
+MinimapCluster.Tracking = MiniMapTracking
+MinimapCluster.ZoneTextButton = MinimapZoneTextButton
+Minimap.ZoomIn = newWidget("Button", nil, Minimap); Minimap.ZoomIn.__w, Minimap.ZoomIn.__h = 17, 17; Minimap.ZoomIn.__shown = false
+Minimap.ZoomOut = newWidget("Button", nil, Minimap); Minimap.ZoomOut.__w, Minimap.ZoomOut.__h = 17, 9; Minimap.ZoomOut.__shown = false
+AddonCompartmentFrame = newWidget("Button", "AddonCompartmentFrame", MinimapCluster)
+TimeManagerClockButton = newWidget("Button", "TimeManagerClockButton", MinimapCluster)
 MinimapCluster.Diel = newWidget("Frame", nil, MinimapCluster)
 MinimapCluster.MinimapContainer = newWidget("Frame", nil, MinimapCluster)
 -- Blizzard's player coordinates: a frame with a FontString, centred under the minimap

@@ -382,6 +382,8 @@ ns.On("ADDON_LOADED", ns, function(_, _, name)
 	for _, m in ipairs(ns.moduleOrder) do
 		ns.db.modules[m.id] = U.FillDefaults(ns.db.modules[m.id] or {}, m.defaults or {})
 		if ns.db.modules[m.id].enabled == nil then ns.db.modules[m.id].enabled = m.default ~= false end
+		-- a module's own older settings, moved to how it saves them now (never dropped)
+		if m.Migrate then ns.SafeCall(m, m.Migrate, m, ns.db.modules[m.id]) end
 	end
 	ns.SetProfiling(ns.db.profiling)
 	ns.Bars:Init()
