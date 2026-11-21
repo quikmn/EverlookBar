@@ -53,7 +53,11 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Clock", text = "", icon = "Interface\\Icons\\INV_Misc_PocketWatch_02",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
-		OnClick = function() if ns.OpenCalendar then ns.OpenCalendar() end end,
+		ebarSecure = ns.SecureClick.ClickOf("GameTimeFrame"), -- the game's own calendar button (secure)
+		ebarOpened = function() return ns.CalendarShown and ns.CalendarShown() or false end,
+		OnClick = ns.SecureClick.Fallback(function(_, mouse)
+			if mouse == "LeftButton" and ns.OpenCalendar then ns.OpenCalendar() end
+		end),
 	})
 	lastKey = -1
 	self.task = self.task or ns.Every(self, 1, function() M:Tick() end)

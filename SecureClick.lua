@@ -10,13 +10,16 @@
 -- enters its button (out of combat), one secure action button is laid over it: its left click "clicks" the game's own
 -- micro button (or runs a /click macro), so the panel opens from secure code, exactly as if the micro button had been
 -- clicked. Other mouse buttons go on to the plugin's normal OnClick. The cover sits at absolute coordinates (anchored
--- to UIParent, never to the plugin's button), so the bar's buttons stay free to move and resize in combat.
+-- to UIParent, never to the plugin's button), so the bar's buttons stay free to move and resize in combat. When
+-- combat starts every such plugin on screen gets a cover, so its click works all fight wherever the mouse comes from;
+-- out of combat the covers follow their buttons when a bar is laid out again.
 local _, ns = ...
 local S = {}
 ns.SecureClick = S
 
-local cover   -- the secure button
-local owner   -- the plugin button it covers
+local pool = {}      -- the secure cover buttons, reused (one per plugin at most)
+local coverOf = {}   -- [plugin button] = its cover while it has one
+local owner          -- the plugin button covered for the mouse right now
 
 -- A micro button (or any frame) by global name, if the game has it.
 function S.Button(name)
@@ -74,7 +77,7 @@ function S.Fallback(fn)
 	return function(...)
 		if InCombatLockdown() then
 			if UIErrorsFrame and UIErrorsFrame.AddMessage then
-				UIErrorsFrame:AddMessage(ns.NAME .. ": opens after combat (or move the mouse off and back on).", 1, 0.3, 0.3)
+				UIErrorsFrame:AddMessage(ns.NAME .. ": this opens after combat (or use its key).", 1, 0.3, 0.3)
 			end
 			return
 		end
@@ -86,42 +89,49 @@ local function hideTip(b)
 	if b and b.shownTip == GameTooltip then GameTooltip:Hide(); b.shownTip = nil end
 end
 
+local function covers(b)
+	local rec = b and b.rec
+	return rec and rec.obj and type(rec.obj.ebarSecure) == "function"
+end
+
+-- A free cover (or a new one). Each runs its plugin's scripts for everything but the secure left click.
 local function make()
-	if cover then return cover end
-	cover = CreateFrame("Button", ns.PREFIX .. "SecureClick", UIParent, "SecureActionButtonTemplate")
-	cover:RegisterForClicks("AnyUp")
-	cover:Hide()
-	cover:SetScript("OnEnter", function()
-		local b = owner
+	for _, c in ipairs(pool) do if not c.owner then return c end end
+	local n = #pool + 1
+	local c = CreateFrame("Button", ns.PREFIX .. "SecureClick" .. (n > 1 and n or ""), UIParent, "SecureActionButtonTemplate")
+	pool[n] = c
+	c:RegisterForClicks("AnyUp")
+	c:Hide()
+	c:SetScript("OnEnter", function(self)
+		local b = self.owner
 		local fn = b and b:GetScript("OnEnter")
 		if fn then fn(b) end
 	end)
-	cover:SetScript("OnLeave", function()
-		local b = owner
+	c:SetScript("OnLeave", function(self)
+		local b = self.owner
 		local fn = b and b:GetScript("OnLeave")
 		if fn then fn(b) end
-		S:Uncover()
+		if b then S:Uncover(b) end
 	end)
 	-- A plugin may say whether its panel is open (ebarOpened). Then the state before the click is noted, and if the
 	-- game's button changed nothing (a client whose micro button doesn't open it), the plugin's own click runs.
-	local before
-	cover:SetScript("PreClick", function()
-		local b = owner
+	c:SetScript("PreClick", function(self)
+		local b = self.owner
 		local obj = b and b.rec and b.rec.obj
-		before = nil
+		self.before = nil
 		if obj and type(obj.ebarOpened) == "function" then
 			local ok, open = pcall(obj.ebarOpened)
-			if ok then before = open and true or false end
+			if ok then self.before = open and true or false end
 		end
 	end)
 	-- Runs after the secure click. The left button was handled securely; the others go to the plugin.
-	cover:SetScript("PostClick", function(self, mouse)
-		local b = owner
+	c:SetScript("PostClick", function(self, mouse)
+		local b = self.owner
 		if not b then return end
 		hideTip(b)
 		if mouse == "LeftButton" and self:GetAttribute("type1") then
 			local obj = b.rec and b.rec.obj
-			local was = before
+			local was = self.before
 			if was ~= nil and obj and type(obj.ebarOpened) == "function" then
 				C_Timer.After(0.15, function()
 					local ok, open = pcall(obj.ebarOpened)
@@ -131,30 +141,32 @@ local function make()
 					end
 				end)
 			end
+			-- the panel changed: what the next click does may change too (open on a tab, or close it)
+			C_Timer.After(0.2, function()
+				if coverOf[b] == self and not InCombatLockdown() then S:Place(b, self) end
+			end)
 			return
 		end
 		local fn = b:GetScript("OnClick")
 		if fn then fn(b, mouse) end
 	end)
-	return cover
+	return c
 end
 
--- Lay the cover over plugin button b, if its plugin has a secure left click. Out of combat only.
-function S:Cover(b)
+-- Point cover c at plugin button b: its secure click and the button's rectangle, in UIParent's coordinates (never
+-- anchored to the button, so the bar's buttons stay free to move and resize in combat). Out of combat only.
+function S:Place(b, c)
 	if InCombatLockdown() then return false end
-	if ns.Unlock and ns.Unlock.active then return false end
 	local rec = b and b.rec
 	local fn = rec and rec.obj and rec.obj.ebarSecure
 	if type(fn) ~= "function" then return false end
 	local ok, attrs = ns.SafeCall(rec, fn)
 	if not ok or type(attrs) ~= "table" then return false end
-	local c = make()
+	local l, bt, w, h = ns.Num(b:GetLeft()), ns.Num(b:GetBottom()), ns.Num(b:GetWidth()), ns.Num(b:GetHeight())
+	if not (l and bt and w and h) or w <= 0 or h <= 0 then return false end
 	c:SetAttribute("type1", attrs.type)
 	c:SetAttribute("clickbutton1", attrs.clickbutton)
 	c:SetAttribute("macrotext1", attrs.macrotext)
-	-- absolute place: same rectangle as the button, in UIParent's coordinates
-	local l, bt, w, h = ns.Num(b:GetLeft()), ns.Num(b:GetBottom()), ns.Num(b:GetWidth()), ns.Num(b:GetHeight())
-	if not (l and bt and w and h) then return false end
 	local bs, us = ns.Num(b:GetEffectiveScale()) or 1, ns.Num(UIParent:GetEffectiveScale()) or 1
 	local k = bs / us
 	c:ClearAllPoints()
@@ -162,22 +174,76 @@ function S:Cover(b)
 	c:SetSize(w * k, h * k)
 	c:SetFrameStrata(b:GetFrameStrata() or "MEDIUM")
 	c:SetFrameLevel((ns.Num(b:GetFrameLevel()) or 1) + 10)
-	owner = b
+	return true
+end
+
+-- Lay a cover over plugin button b, if its plugin has a secure left click. Out of combat only.
+-- forCombat: laid when combat starts (not for the mouse), so it works all fight long.
+function S:Cover(b, forCombat)
+	if InCombatLockdown() then return false end
+	if not forCombat and ns.Unlock and ns.Unlock.active then return false end
+	if not covers(b) then return false end
+	local c = coverOf[b] or make()
+	if not self:Place(b, c) then
+		if coverOf[b] == c then self:Uncover(b) end
+		return false
+	end
+	c.owner, coverOf[b] = b, c
+	if not forCombat then owner = b end
 	c:Show()
 	return true
 end
 
--- Take the cover away (out of combat; in combat it stays and keeps working, and goes when combat ends).
-function S:Uncover()
-	if not cover or not cover:IsShown() then owner = nil return end
+-- Take the cover away from b (default: the one under the mouse). In combat it stays and keeps working; it goes when
+-- combat ends, unless the mouse is on it then.
+function S:Uncover(b)
+	b = b or owner
+	local c = b and coverOf[b]
+	if not c then if b == owner then owner = nil end return end
 	if InCombatLockdown() then
-		ns.AfterCombat("secureclick", function() S:Uncover() end)
+		ns.AfterCombat("secureclick", function() S:UncoverIdle() end)
 		return
 	end
-	cover:Hide()
-	cover:ClearAllPoints()
-	owner = nil
+	c:Hide()
+	c:ClearAllPoints()
+	c.owner, coverOf[b] = nil, nil
+	if owner == b then owner = nil end
 end
 
+-- After combat: drop every cover the mouse is not on.
+function S:UncoverIdle()
+	for b, c in pairs(coverOf) do
+		if not (c:IsShown() and c:IsMouseOver()) then S:Uncover(b) end
+	end
+end
+
+-- The bar was laid out again: covers follow their buttons (out of combat), and go when a button went.
+function S:Sync()
+	if InCombatLockdown() then return end
+	for b, c in pairs(coverOf) do
+		if not (b:IsVisible() and covers(b) and self:Place(b, c)) then self:Uncover(b) end
+	end
+end
+
+-- Combat starts (the last moment protected frames can be changed): cover every secure plugin on screen, so its
+-- left click works in combat too, wherever the mouse came from. Combat ends: covers the mouse is not on go away, and
+-- a plugin under the mouse gets its cover (it was entered during combat, when none could be laid).
+ns.On("PLAYER_REGEN_DISABLED", S, function()
+	if not ns.Host then return end
+	for _, rec in pairs(ns.Host.plugins) do
+		local b = rec.button
+		if b and b:IsVisible() and covers(b) and not coverOf[b] then S:Cover(b, true) end
+	end
+end)
+ns.On("PLAYER_REGEN_ENABLED", S, function()
+	S:UncoverIdle()
+	if not ns.Host then return end
+	for _, rec in pairs(ns.Host.plugins) do
+		local b = rec.button
+		if b and b:IsVisible() and covers(b) and b:IsMouseOver() then S:Cover(b) end
+	end
+end)
+
 function S:Owner() return owner end
-function S:Frame() return cover end
+function S:Frame() return (owner and coverOf[owner]) or pool[1] end
+function S:Covers() return coverOf end -- tests

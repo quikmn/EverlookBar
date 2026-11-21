@@ -212,6 +212,11 @@ function ns.OpenCalendar()
 	return false
 end
 
+-- Is Blizzard's calendar open? (A click on the game's calendar button that changed nothing opens it from here.)
+function ns.CalendarShown()
+	return CalendarFrame ~= nil and CalendarFrame.IsShown ~= nil and CalendarFrame:IsShown() and true or false
+end
+
 -- Show one event in Blizzard's calendar.
 local function openEvent(e)
 	ns.OpenCalendar()
@@ -340,8 +345,11 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Calendar", text = "", icon = "Interface\\Icons\\INV_Misc_Note_02",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
+		-- left click: the game's own calendar button (secure; SecureClick.lua); right-click: our menu
+		ebarSecure = ns.SecureClick.ClickOf("GameTimeFrame"),
+		ebarOpened = ns.CalendarShown,
 		OnClick = function(button, mouse)
-			if mouse == "RightButton" then M:Menu(button) else ns.OpenCalendar() end
+			if mouse == "RightButton" then M:Menu(button) else ns.SecureClick.Fallback(ns.OpenCalendar)() end
 		end,
 	})
 	local function rebuild() M:Build(); M:Render() end

@@ -70,7 +70,13 @@ function M:Enable()
 	obj = ns.Plugin(self, {
 		type = "data source", label = "Bags", text = "", icon = "Interface\\Icons\\INV_Misc_Bag_08",
 		OnTooltipShow = function(tip) M.Tooltip(tip) end,
-		OnClick = function() if ToggleAllBags then ToggleAllBags() end end,
+		-- the bags open through the game's own backpack button (secure; SecureClick.lua): bag frames opened from addon
+		-- code are tainted, and an item clicked in them in combat can then be blocked
+		ebarSecure = ns.SecureClick.ClickOf("MainMenuBarBackpackButton"),
+		OnClick = ns.SecureClick.Fallback(function(_, mouse)
+			if mouse ~= "LeftButton" then return end
+			if ToggleAllBags then ToggleAllBags() elseif ToggleBackpack then ToggleBackpack() end
+		end),
 	})
 	local function update() ns.Soon(M.Update, M) end
 	for _, e in ipairs({ "BAG_UPDATE", "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD", "BAG_SLOT_FLAGS_UPDATED" }) do
