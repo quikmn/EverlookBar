@@ -20,9 +20,6 @@ ns.SecureClick = S
 local pool = {}      -- the secure cover buttons, reused (one per plugin at most)
 local coverOf = {}   -- [plugin button] = its cover while it has one
 local owner          -- the plugin button covered for the mouse right now
--- Other buttons that open Blizzard panels the same way (the taskbar's window buttons): covered for combat like the
--- plugins. A button may carry b.ebarPreSecure(b) and b.ebarAfterSecure(b), run around its secure left click.
-local tracked = setmetatable({}, { __mode = "k" })
 
 -- A micro button (or any frame) by global name, if the game has it.
 function S.Button(name)
@@ -122,7 +119,6 @@ local function make()
 		local b = self.owner
 		local obj = b and b.rec and b.rec.obj
 		self.before = nil
-		if b and b.ebarPreSecure then pcall(b.ebarPreSecure, b) end
 		if obj and type(obj.ebarOpened) == "function" then
 			local ok, open = pcall(obj.ebarOpened)
 			if ok then self.before = open and true or false end
@@ -134,8 +130,6 @@ local function make()
 		if not b then return end
 		hideTip(b)
 		if mouse == "LeftButton" and self:GetAttribute("type1") then
-			if b.ebarAfterSecure then pcall(b.ebarAfterSecure, b) end
-			if coverOf[b] ~= self then return end -- the button let go of its cover (a menu that closed)
 			local obj = b.rec and b.rec.obj
 			local was = self.before
 			if was ~= nil and obj and type(obj.ebarOpened) == "function" then
@@ -234,21 +228,7 @@ end
 -- Combat starts (the last moment protected frames can be changed): cover every secure plugin on screen, so its
 -- left click works in combat too, wherever the mouse came from. Combat ends: covers the mouse is not on go away, and
 -- a plugin under the mouse gets its cover (it was entered during combat, when none could be laid).
--- b (not a plugin's button) gets covers like the plugins: when the mouse enters (its OnEnter calls S:Cover) and for
--- all of combat while it is on screen. on = false: not any more (its cover goes).
-function S:Track(b, on)
-	if on == false then
-		tracked[b] = nil
-		if coverOf[b] then self:Uncover(b) end
-	else
-		tracked[b] = true
-	end
-end
-
 ns.On("PLAYER_REGEN_DISABLED", S, function()
-	for b in pairs(tracked) do
-		if b:IsVisible() and covers(b) and not coverOf[b] then S:Cover(b, true) end
-	end
 	if not ns.Host then return end
 	for _, rec in pairs(ns.Host.plugins) do
 		local b = rec.button
@@ -257,9 +237,6 @@ ns.On("PLAYER_REGEN_DISABLED", S, function()
 end)
 ns.On("PLAYER_REGEN_ENABLED", S, function()
 	S:UncoverIdle()
-	for b in pairs(tracked) do
-		if b:IsVisible() and covers(b) and b:IsMouseOver() then S:Cover(b) end
-	end
 	if not ns.Host then return end
 	for _, rec in pairs(ns.Host.plugins) do
 		local b = rec.button

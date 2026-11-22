@@ -535,9 +535,6 @@ end
 
 app:Section("bars", "Bars", function(stack)
 	UI.Header(stack, "Bars", "As many bars as you like, on any edge or anywhere. Press Unlock to move and drag them, or set them here.")
-	if not (ns.db.taskbar and ns.db.taskbar.enabled) then
-		UI.Note(stack, "New: a taskbar with a Start menu, like on a PC. Switch it on on the Taskbar page.", ns.UI.Theme.accent)
-	end
 	barPicker(stack)
 	UI.ButtonRow(stack, {
 		{ label = "New bar", style = "accent", width = 140, onClick = function() O:AddBar("bottom") end,
@@ -881,81 +878,10 @@ app:Section("general", "General", function(stack)
 		.. s .. " plugins, " .. s .. " place gold 1 right, " .. s .. " remove gold\n"
 		.. s .. " minimap.mail on  switch a piece around the minimap;  " .. s .. " minimap reset  put it all back\n"
 		.. s .. " minimap scan  what the minimap module found, and any text near the minimap\n"
-		.. s .. " taskbar on  the taskbar;  " .. s .. " start  the Start menu;  " .. s .. " tile  tile your windows\n"
 		.. s .. " perf  memory and CPU;  " .. s .. " status  bars, plugins, memory\n"
 		.. s .. " get  every setting (get bar.edge: one)\n" .. s .. " search <words>  find a setting\n"
 		.. s .. " reset bars | all | minimap  asks first (type it twice)\n" .. s .. " help  all of this in chat")
 end)
-
-------------------------------------------------------------------------
--- Taskbar
-------------------------------------------------------------------------
-local TB_EDGES = { { value = "bottom", text = "Bottom of the screen" }, { value = "top", text = "Top of the screen" },
-	{ value = "left", text = "Left side" }, { value = "right", text = "Right side" } }
-local function tdb() return ns.db.taskbar end
-local function tbRefresh() if ns.Taskbar then ns.Taskbar:Refresh() end end
-app:Setting({ key = "taskbar.enabled", type = "bool", label = "Taskbar with a Start menu", default = false,
-	get = function() return tdb().enabled end, set = function(v) ns.Taskbar:SetEnabled(v) end,
-	keywords = { "start", "menu", "windows", "taskbar", "minimize", "tile", "tiling", "snap", "maximize" },
-	desc = "A bar with a Start button and a button for every open window: minimize, bring back, maximize, snap and tile them." })
-app:Setting({ key = "taskbar.edge", type = "choice", label = "Taskbar sits at", choices = TB_EDGES, width = 240, default = "bottom",
-	get = function() return tdb().edge end, set = function(v) ns.Taskbar:SetEdge(v) end })
-app:Setting({ key = "taskbar.size", type = "number", label = "Taskbar thickness (width on the left or right)", min = 20, max = 300, default = 32,
-	get = function() return ns.Taskbar:Size() end, set = function(v) ns.Taskbar:SetSize(v) end })
-app:Setting({ key = "taskbar.labels", type = "bool", label = "Window names on the buttons", default = true,
-	get = function() return tdb().labels end, set = function(v) tdb().labels = v end, after = tbRefresh,
-	desc = "Off: icons only, so more windows fit." })
-app:Setting({ key = "taskbar.snap", type = "bool", label = "Snap windows dragged to a screen edge", default = true,
-	get = function() return tdb().snap end, set = function(v) tdb().snap = v end,
-	desc = "Drag an EverlookDB window to the top edge to maximize it, to the left or right edge for half the screen, into a corner for a quarter." })
-app:Setting({ key = "taskbar.gap", type = "number", label = "Space around snapped and tiled windows", min = 0, max = 30, default = 4,
-	get = function() return tdb().gap end, set = function(v) tdb().gap = v end })
-app:Setting({ key = "taskbar.blizzard", type = "bool", label = "List the game's windows", default = true,
-	get = function() return tdb().blizzard end, set = function(v) tdb().blizzard = v; if ns.WM.running then ns.WM:Scan(true) end end,
-	desc = "Character, spellbook, map, bags and the rest. Click opens and closes them; the game keeps them in their place." })
-app:Setting({ key = "taskbar.others", type = "bool", label = "List other addons' windows", default = true,
-	get = function() return tdb().others end, set = function(v) tdb().others = v; if ns.WM.running then ns.WM:Scan(true) end end,
-	desc = "Windows of other addons that can be moved. Right-click one's button and pick Don't list this window to leave it out." })
-
-local function needTaskbar()
-	if tdb().enabled then return true end
-	ns:Print("the taskbar is off. " .. ns.SLASH .. " taskbar on switches it on.")
-	return false
-end
-app:Command("start", "start [words]", "open the Start menu (with a search)", function(rest) ns.StartMenu:Show(U.Trim(rest)) end)
-app:Command("tile", "tile", "tile all open windows", function() if needTaskbar() then ns.Taskbar:TileAll() end end)
-app:Command("desktop", "desktop", "minimize all windows", function() if needTaskbar() then ns.WM:MinimizeAll() end end, { "minimize" })
-app:Command("restore", "restore", "bring every minimized window back", function() if needTaskbar() then ns.WM:RestoreAll() end end)
-app:Command("taskbar", "taskbar [on|off|top|bottom|left|right]", "the taskbar: switch it, or put it on an edge", function(rest)
-	local w = U.Trim(rest):lower()
-	if w == "on" or w == "off" then
-		ns.Taskbar:SetEnabled(w == "on")
-		ns:Print("taskbar " .. w .. ".")
-	elseif w == "top" or w == "bottom" or w == "left" or w == "right" then
-		ns.Taskbar:SetEdge(w)
-		if not tdb().enabled then ns.Taskbar:SetEnabled(true) end
-		ns:Print("taskbar at the " .. w .. ".")
-	else
-		app:Open("taskbar")
-	end
-end)
-
-app:Section("taskbar", "Taskbar", function(stack)
-	UI.Header(stack, "Taskbar", "A Start button and your open windows, like on a PC.")
-	UI.Note(stack, "Start lists every window you can open: EverlookDB windows and pages, the game's panels, your professions and addon buttons. Type to search, Enter opens the first; right-click one to pin it.\n"
-		.. "Click a window's button to bring it to the front; click again to minimize it. Right-click for maximize, snap to a half, quarter or third, and close. Drag an EverlookDB window to a screen edge to snap it.")
-	local function Wd(k) return app:Widget(stack, k) end
-	Wd("taskbar.enabled"); Wd("taskbar.edge"); Wd("taskbar.size"); Wd("taskbar.labels")
-	UI.Header(stack, "Windows")
-	Wd("taskbar.snap"); Wd("taskbar.gap"); Wd("taskbar.blizzard"); Wd("taskbar.others")
-	UI.ButtonRow(stack, {
-		{ label = "Open the Start menu", width = 170, onClick = function() ns.StartMenu:Show() end,
-			desc = "Also " .. ns.SLASH .. " start, or a key: Settings > Keybindings > AddOns > " .. ns.NAME .. "." },
-		{ label = "Tile all windows", width = 150, onClick = function() if needTaskbar() then ns.Taskbar:TileAll() end end },
-	})
-	UI.Note(stack, "The game's own windows keep the place the game gives them, so they aren't moved or tiled. In combat, windows the game protects change when combat ends.",
-		ns.UI.Theme.muted)
-end, { icon = "frames", desc = "A Start menu and a button for every open window." })
 
 ------------------------------------------------------------------------
 -- Hooks for the rest of the addon

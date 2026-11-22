@@ -95,7 +95,6 @@ ns.DEFAULTS = {
 	profiling = false,
 	hideBagGCD = true,     -- don't spin every bag slot with the global cooldown (WoW Forever reports it for all items)
 	minimap = {},          -- filled by Minimap.lua
-	taskbar = {},          -- filled by Taskbar.lua (off until the player switches it on)
 	seenLayout = false,    -- the default layout was placed once
 	told = {},             -- notices said once ever in chat ("stepAside:SexyMap" = true); they stay in settings and /ebar status
 }
@@ -387,9 +386,14 @@ ns.On("ADDON_LOADED", ns, function(_, _, name)
 		if m.Migrate then ns.SafeCall(m, m.Migrate, m, ns.db.modules[m.id]) end
 	end
 	ns.SetProfiling(ns.db.profiling)
-	if ns.Taskbar then ns.Taskbar:Init() end
 	ns.Bars:Init()
 	ns.Host:Init()
+	-- the taskbar (0.4.0) is gone: its bar and settings go with it; plugins on it move like on any removed bar
+	for i = #ns.db.bars, 1, -1 do
+		local bar = ns.db.bars[i]
+		if bar.kind == "taskbar" and not ns.Bars:RemoveBar(i) then bar.kind = nil end
+	end
+	ns.db.taskbar = nil
 	for _, m in ipairs(ns.moduleOrder) do
 		if ns.db.modules[m.id].enabled then ns:SetModuleEnabled(m, true) end
 	end

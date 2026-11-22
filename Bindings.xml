@@ -1,4 +1,0 @@
-<Bindings>
-	<Binding name="EVERLOOKBAR_START" header="EVERLOOKBAR">EverlookBar.ToggleStart()</Binding>
-	<Binding name="EVERLOOKBAR_TILE">EverlookBar.TileAll()</Binding>
-</Bindings>

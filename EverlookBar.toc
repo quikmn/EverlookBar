@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: EverlookDB Bar
-## Notes: Info bars for LibDataBroker plugins (XP, reputation, professions, performance, location, durability, mail, bags, quests, gold, clock, calendar) a clean minimap, and an optional taskbar with a Start menu.
+## Notes: Info bars for LibDataBroker plugins (XP, reputation, professions, performance, location, durability, mail, bags, quests, gold, clock, calendar) and a clean minimap.
 ## Author: quikmn
 ## Version: 0.4.0
 ## SavedVariables: EverlookBarDB
@@ -14,14 +14,10 @@ Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\EverlookUI\EverlookUI.lua
 Core.lua
 Layout.lua
-Tiling.lua
 Host.lua
 Bars.lua
 SecureClick.lua
 API.lua
-Windows.lua
-Taskbar.lua
-StartMenu.lua
 Modules\XP.lua
 Modules\Reputation.lua
 Modules\Performance.lua

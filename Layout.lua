@@ -37,14 +37,10 @@ local function along(bar, full, len)
 end
 
 -- Rectangles for all bars: rects[i] = { x, y, w, h, vertical }. Bars on the same edge stack outwards to inwards in
--- list order, the taskbar (kind "taskbar") outermost of all; hidden bars take no room.
+-- list order; hidden bars take no room.
 function L.BarRects(bars, W, H)
 	local rects, stack = {}, { top = 0, bottom = 0, left = 0, right = 0 }
-	local order = {}
-	for i, bar in ipairs(bars) do if bar.kind == "taskbar" then order[#order + 1] = i end end
-	for i, bar in ipairs(bars) do if bar.kind ~= "taskbar" then order[#order + 1] = i end end
-	for _, i in ipairs(order) do
-		local bar = bars[i]
+	for i, bar in ipairs(bars) do
 		local thick, len = L.Size(bar, W, H)
 		local v = vertical(bar)
 		local r = { vertical = v }
@@ -77,31 +73,6 @@ local function byOrder(a, b)
 	return (a.key or "") < (b.key or "")
 end
 
--- The taskbar's strip (the Start button and the window buttons): first in the left group of row 1, as long as the
--- room left before the first centre or right plugin of that row (and after its other left plugins) allows.
--- Returns the strip's length along the bar (0 or more).
-function L.TaskStripLength(bar, barW, barH, items, itemH)
-	local v = vertical(bar)
-	local spacing = max(0, tonumber(bar.spacing) or 0)
-	local pad = max(0, tonumber(bar.padding) or 0)
-	local length = v and barH or barW
-	local pos = L.PlaceItems(bar, barW, barH, items, itemH)
-	local stop, leftEnd = length - pad, nil
-	for _, it in ipairs(items) do
-		if max(1, floor(tonumber(it.lane) or 1)) == 1 then
-			local p = pos[it]
-			local a, e = v and p.y or p.x, v and (p.y + p.h) or (p.x + p.w)
-			if it.group == "center" or it.group == "right" then
-				stop = min(stop, a - spacing)
-			else
-				leftEnd = max(leftEnd or 0, e)
-			end
-		end
-	end
-	local used = leftEnd and (leftEnd - pad + spacing) or 0
-	return max(0, floor(stop - pad - used))
-end
-
 -- Positions of the plugins on one bar.
 -- items: { { key, w, lane, group, order } } (w = width the plugin wants); itemH: a plugin's height in side bars.
 -- Returns pos[item] = { x, y, w, h } (y downwards from the bar's top). Every group of a lane keeps the visual
@@ -131,7 +102,7 @@ function L.PlaceItems(bar, barW, barH, items, itemH)
 				-- size of each item along the bar
 				local total = 0
 				for i, it in ipairs(list) do
-					local s = tonumber(it.len) or (v and itemH or max(0, tonumber(it.w) or 0))
+					local s = v and itemH or max(0, tonumber(it.w) or 0)
 					it._s = s
 					total = total + s + (i > 1 and spacing or 0)
 				end

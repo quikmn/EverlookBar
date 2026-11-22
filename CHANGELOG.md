@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- The taskbar and Start menu are gone again for now; your bars work as before.
+
 ## v0.4.0 (2026-11-22)
 - New, and off until you switch it on: a **taskbar with a Start menu**, like on a PC. Turn it on on the new Taskbar page of `/ebar` (or `/ebar taskbar on`); put it at the bottom, top, left or right.
 - **Start** lists every window you can open: EverlookDB windows and their pages, the game's panels (character, spellbook, talents, quest log, map, friends, guild, bags, macros, key bindings, settings...), your professions and other addons' buttons. Type to search, Enter opens the first. Pin favourites; the ones you used lately are at the top. A key for it is under Key Bindings > AddOns.
