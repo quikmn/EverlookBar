@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- New, and off until you switch it on: a **taskbar with a Start menu**, like on a PC. Turn it on on the new Taskbar page of `/ebar` (or `/ebar taskbar on`); put it at the bottom, top, left or right.
+- **Start** lists every window you can open: EverlookDB windows and their pages, the game's panels (character, spellbook, talents, quest log, map, friends, guild, bags, macros, key bindings, settings...), your professions and other addons' buttons. Type to search, Enter opens the first. Pin favourites; the ones you used lately are at the top. A key for it is under Key Bindings > AddOns.
+- Every open window gets a button: click to bring it to the front, click again to minimize it, click a minimized one to bring it back as it was.
+- Right-click a window's button to maximize it or snap it to a half, quarter or third of the screen, then restore its size. **Tile all** puts your open windows side by side.
+- Drag an EverlookDB window to the top edge of the screen to maximize it, to a side for half the screen, or into a corner for a quarter.
+- The game's own windows open and close from the taskbar and keep the place the game gives them. In combat, windows the game protects change when combat ends.
+
 ## v0.3.0 (2026-11-21)
 - Pieces around the minimap (zone name, tracking, mail, calendar, day/night, clock, coordinates, zoom, addon menu): one on/off switch each, with a Reset button, on the Minimap page.
 - Pieces now sit on the minimap's edge and move and grow with it; they follow when you change shape, size or border.

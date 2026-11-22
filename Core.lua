@@ -95,6 +95,7 @@ ns.DEFAULTS = {
 	profiling = false,
 	hideBagGCD = true,     -- don't spin every bag slot with the global cooldown (WoW Forever reports it for all items)
 	minimap = {},          -- filled by Minimap.lua
+	taskbar = {},          -- filled by Taskbar.lua (off until the player switches it on)
 	seenLayout = false,    -- the default layout was placed once
 	told = {},             -- notices said once ever in chat ("stepAside:SexyMap" = true); they stay in settings and /ebar status
 }
@@ -386,6 +387,7 @@ ns.On("ADDON_LOADED", ns, function(_, _, name)
 		if m.Migrate then ns.SafeCall(m, m.Migrate, m, ns.db.modules[m.id]) end
 	end
 	ns.SetProfiling(ns.db.profiling)
+	if ns.Taskbar then ns.Taskbar:Init() end
 	ns.Bars:Init()
 	ns.Host:Init()
 	for _, m in ipairs(ns.moduleOrder) do

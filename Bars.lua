@@ -108,6 +108,7 @@ function Bars:RemoveBar(i)
 	-- the last frame is now spare: hide it (frames are never destroyed; it is reused by the next new bar)
 	local last = self.frames[#ns.db.bars + 1]
 	if last then last:Hide() end
+	if ns.Taskbar then ns.Taskbar:BarsChanged() end
 	ns.Host:RefreshAll()
 	return true
 end
@@ -186,7 +187,18 @@ function Bars:LayoutAll()
 			end
 			items[#items + 1] = { key = rec.key, rec = rec, w = b.wantW or 40, lane = p.lane or 1, group = p.group, order = p.order or 0 }
 		end
+		-- the taskbar: its Start button and window buttons take the room before the plugins (Taskbar.lua)
+		local strip
+		if bar.kind == "taskbar" and ns.Taskbar then
+			strip = { key = "__taskbar", len = L.TaskStripLength(bar, r.w, r.h, items, itemHeight(bar)), lane = 1,
+				group = "left", order = -1e9 }
+			items[#items + 1] = strip
+		end
 		local pos = L.PlaceItems(bar, r.w, r.h, items, itemHeight(bar))
+		if strip then
+			items[#items] = nil
+			ns.SafeCall(ns.Taskbar, ns.Taskbar.PlaceStrip, ns.Taskbar, f, pos[strip], r.vertical, bar)
+		end
 		for _, it in ipairs(items) do
 			local q = pos[it]
 			local b = it.rec.button

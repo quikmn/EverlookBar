@@ -159,6 +159,12 @@ function impl:SetAttribute(k, v) self.__attrs = self.__attrs or {}; self.__attrs
 function impl:GetAttribute(k) return self.__attrs and self.__attrs[k] end
 function impl:Click(button) self.__clicks = (self.__clicks or 0) + 1; local fn = self.__scripts.OnClick; if fn then fn(self, button or "LeftButton") end end
 function impl:IsMovable() return self.__movable or false end
+function impl:SetResizable(on) self.__resizable = on end
+function impl:IsResizable() return self.__resizable or false end
+function impl:SetResizeBounds(a, b, c, d) self.__bounds = { a, b, c, d } end
+function impl:GetResizeBounds() local b = self.__bounds or {}; return b[1] or 0, b[2] or 0, b[3] or 0, b[4] or 0 end
+function impl:SetToplevel(on) self.__toplevel = on end
+function impl:Raise() MOCK.raiseLevel = (MOCK.raiseLevel or 100) + 1; self.__level = MOCK.raiseLevel end
 
 Widget.__index = function(self, key)
 	local f = impl[key]
@@ -498,3 +504,16 @@ C_Reputation = {
 	CollapseFactionHeader = function(i) MOCK.collapseCalls = MOCK.collapseCalls + 1; visibleFactions()[i].isCollapsed = true end,
 }
 ToggleCharacter = function(tab) MOCK.toggled = tab end
+
+-- Key bindings and the red error line
+MOCK.bindings = {}
+SetOverrideBindingClick = function(owner, _, key, button)
+	if MOCK.combat then error("SetOverrideBindingClick in combat", 2) end
+	MOCK.bindings[key] = button
+end
+ClearOverrideBindings = function()
+	if MOCK.combat then error("ClearOverrideBindings in combat", 2) end
+	MOCK.bindings = {}
+end
+MOCK.errorsShown = {}
+UIErrorsFrame = { AddMessage = function(_, m) table.insert(MOCK.errorsShown, m) end }

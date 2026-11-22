@@ -34,6 +34,20 @@ spacing. Side bars stack their plugins. Plugins sit in left, centre and right gr
   a right-click.
 - **Clock**: off by default.
 
+**Taskbar and Start menu** (off until you switch it on). A taskbar like on a PC, along any edge of the screen:
+
+- **Start** lists every window you can open: EverlookDB windows and their pages, the game's panels (character,
+  spellbook, talents, quest log, map, friends, guild, bags, macros, key bindings, settings...), your professions and
+  other addons' buttons. Type to search and press Enter; pin your favourites; the ones you used lately come first.
+- Every open window gets a button with its icon and name. Click to bring it to the front, click again to minimize it;
+  a minimized window comes back exactly as it was.
+- Right-click a button: minimize, maximize or restore, snap to a half, quarter or third of the screen, close.
+  **Tile all** arranges your open windows side by side, clear of your bars.
+- Drag an EverlookDB window to the top edge to maximize it, to the left or right edge for half the screen, or into a
+  corner for a quarter. A faint outline shows where it goes.
+- The game's own windows open and close from the taskbar and stay where the game puts them. Other addons' windows
+  can be minimized, snapped and tiled too.
+
 **Clean minimap.** Square (the default) or round, a border of your thickness and colour, any size, anywhere on
 screen, and an optional zone line showing where you stand.
 
@@ -66,6 +80,10 @@ so once in chat and at the top of the Minimap page, and greys out what doesn't a
   back.
   `/ebar minimap scan` lists any other text shown around the minimap and the addon it comes from.
 - `/ebar perf` shows what EverlookDB Bar itself costs.
+- **Taskbar**: switch it on on the Taskbar page of `/ebar`, or `/ebar taskbar on` (`/ebar taskbar left` puts it on
+  the left). `/ebar start` opens the Start menu (`/ebar start map` with a search), `/ebar tile` tiles your windows,
+  `/ebar desktop` minimizes them all, `/ebar restore` brings them back. Keys for the Start menu and Tile all are
+  under Key Bindings > AddOns.
 
 ## Commands
 
@@ -78,6 +96,7 @@ so once in chat and at the top of the Minimap page, and greys out what doesn't a
 - `/ebar minimap unlock`, `lock` (the same as `/ebar unlock` and `lock`), `reset`, `scan`, `grab <frame>`, `ignore <frame>`.
 - `/ebar minimap.<piece> on|off`: zone, tracking, mail, calendar, daynight, clock, coords, zoom, compartment, ringart.
 - `/ebar reset bars`, `/ebar reset all`, `/ebar minimap reset` ask first (type it again within 10 seconds); `/ebar reset all confirm` still works.
+- `/ebar taskbar [on|off|top|bottom|left|right]`, `/ebar start [words]`, `/ebar tile`, `/ebar desktop`, `/ebar restore`.
 - `/ebar search <words>` opens the window with its search box filled; `/ebar status` (bars, plugins, memory), `/ebar version`, `/ebar perf`.
 - `/ebar help` (or `?`) lists every command; a mistyped one suggests the nearest.
 
@@ -85,7 +104,7 @@ so once in chat and at the top of the Minimap page, and greys out what doesn't a
 
 - Light: plugins update only when something changes, so the bar costs next to nothing.
 - A broken plugin from another addon gets a small red marker; the bar keeps going.
-- Safe in combat: nothing the game protects is touched while you fight. Minimap changes wait until combat ends.
+- Safe in combat: nothing the game protects is touched while you fight. Minimap and window changes wait until combat ends.
 - Works alongside NoAutoClose and BlizzMove.
 
 ## For plugin authors

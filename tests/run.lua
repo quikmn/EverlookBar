@@ -22,7 +22,8 @@ local function logHas(s)
 end
 
 -- Taint guard: our own files may only write these globals (Blizzard globals must never be written).
-local ALLOWED = { EverlookBar = true, EverlookBarDB = true, SLASH_EVERLOOKBAR1 = true, SLASH_EVERLOOKBAR2 = true, GetMinimapShape = true }
+local ALLOWED = { EverlookBar = true, EverlookBarDB = true, SLASH_EVERLOOKBAR1 = true, SLASH_EVERLOOKBAR2 = true, GetMinimapShape = true,
+	BINDING_HEADER_EVERLOOKBAR = true, BINDING_NAME_EVERLOOKBAR_START = true, BINDING_NAME_EVERLOOKBAR_TILE = true }
 local globalWrites = {}
 local addonEnv = setmetatable({}, {
 	__index = _G,
@@ -2436,6 +2437,9 @@ end)
 ------------------------------------------------------------------------
 -- Cost
 ------------------------------------------------------------------------
+-- The taskbar, Start menu and window tiling (tests/taskbar.lua); it switches the taskbar off again at its end.
+assert(loadfile(ROOT .. "/tests/taskbar.lua"))(ns, step, check, eq, flush, slash, ROOT)
+
 step("cost: idle ticks make no garbage; time per tick", function()
 	for _ = 1, 20 do MOCK.time = MOCK.time + 1; ns.Tick() end -- settle
 	collectgarbage("collect")
