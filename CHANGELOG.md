@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.1 (2026-11-22)
 - The taskbar and Start menu are gone again for now; your bars work as before.
 
 ## v0.4.0 (2026-11-22)
