@@ -732,11 +732,9 @@ end
 function M:Center()
 	local p = mdb().point
 	if type(p) == "table" and tonumber(p[1]) and tonumber(p[2]) then return p[1], p[2] end
-	-- first run: where the minimap is now, so nothing jumps
-	local x, y = Minimap:GetCenter()
-	local s = (ns.Num(Minimap:GetEffectiveScale()) or 1) / (ns.Num(UIParent:GetEffectiveScale()) or 1)
-	x, y = ns.Num(x), ns.Num(y)
-	if x and y then return x * s, y * s end
+	-- first run: the top-right corner (where a reset puts it), clear of a top bar
+	local ok, x, y = pcall(self.DefaultCenter, self)
+	if ok and ns.Num(x) and ns.Num(y) then return x, y end
 	return (ns.Num(UIParent:GetWidth()) or 1920) - 120, (ns.Num(UIParent:GetHeight()) or 1080) - 120
 end
 

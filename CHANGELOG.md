@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- New installs put the minimap in the top-right corner instead of where the game left it. A minimap you already moved stays put.
+
 ## v0.4.1 (2026-11-22)
 - The taskbar and Start menu are gone again for now; your bars work as before.
 
