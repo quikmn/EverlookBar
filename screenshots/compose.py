@@ -1,4 +1,4 @@
-# Builds the CurseForge/site screenshots (1920x1080) from UISandbox renders in raw/ (render.py EverlookBar <scenario> --zoom 2).
+# Builds the CurseForge/site screenshots (1920x1080) from UISandbox renders in raw/ (render.py EverlookBar <scenario> --zoom 2). Small pieces (not windows) with --bg transparent.
 from PIL import Image, ImageDraw
 import math
 W, H = 1920, 1080
