@@ -36,14 +36,15 @@ def place(ims, out, gap=70, maxw=1760, maxh=980, shadows=True, up=1.0):
 
 # 1: the bar. The whole bar along the top, then its two ends larger underneath.
 bar = Image.open("raw/bar.png").convert("RGBA")
+bar = bar.crop((0, 0, bar.width, 44))  # the bar only (44 px at zoom 2), not the backdrop under it
 c = BG.convert("RGBA")
 def strip(im, w):
     s = w / im.width
     return im.resize((w, int(im.height * s)), Image.LANCZOS)
 full = strip(bar, W); c.paste(full, (0, 0), full)
-pieces = [bar.crop((0, 0, 760, bar.height)), bar.crop((1740, 0, 2100, bar.height)), bar.crop((2400, 0, 3840, bar.height))]
-pieces = [strip(pieces[0], 1000), strip(pieces[1], 560), strip(pieces[2], 1760)]
-y = 260
+pieces = [bar.crop((0, 0, 520, bar.height)), bar.crop((1740, 0, 2100, bar.height)), bar.crop((2170, 0, 3840, bar.height))]
+pieces = [strip(pieces[0], 900), strip(pieces[1], 640), strip(pieces[2], 1760)]
+y = full.height + (H - full.height - sum(i.height for i in pieces) - 110 * (len(pieces) - 1)) // 2
 for im in pieces:
     x = (W - im.width) // 2
     c = shadow(c, (x, y, x + im.width, y + im.height), 8)
@@ -51,8 +52,10 @@ for im in pieces:
     y += im.height + 110
 c.convert("RGB").save("1-bar.png")
 
-place([raw("bar-xp"), raw("bar-gold")], "2-plugins-and-tooltips.png", gap=140, maxh=700, up=2.2)
-place([raw("minimap-drawer")], "3-clean-minimap.png", maxw=1500, maxh=800, up=2.2)
-place([raw("page-modules", key=False)], "4-built-in-plugins.png")
-place([raw("plugins-drag", crop=(1060, 460, 2760, 1700), key=False)], "5-drag-plugins.png")
-place([raw("page-bars", key=False)], "6-bars.png")
+place([raw("bar-xp"), raw("bar-gold"), raw("tracking-menu")], "2-plugins-and-tooltips.png", gap=120, maxh=760, up=1.6)
+place([raw("minimap-pieces"), raw("minimap-unlock")], "3-minimap-pieces.png", gap=140, maxh=820, up=1.3)
+place([raw("plugins-drag", crop=(1060, 460, 2760, 1700), key=False)], "4-drag-plugins.png")
+place([raw("page-minimap-pieces", key=False)], "5-minimap-settings.png")
+place([raw("minimap-drawer")], "6-addon-drawer.png", maxw=1500, maxh=800, up=2.0)
+place([raw("page-modules", key=False)], "7-built-in-plugins.png")
+place([raw("page-bars", key=False)], "8-bars.png")

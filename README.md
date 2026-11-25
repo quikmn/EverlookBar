@@ -2,7 +2,7 @@
 
 Info bars and a clean minimap for WoW Forever (1.60.1, interface 16001).
 
-![EverlookDB Bar](screenshots/bar.png)
+![EverlookDB Bar](screenshots/1-bar.png)
 *(screenshot to come)*
 
 ## What it does
