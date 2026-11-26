@@ -1168,7 +1168,9 @@ end
 -- Addon buttons: LibDBIcon buttons through the library, loose ones found among the minimap's children.
 ------------------------------------------------------------------------
 local BLIZZARD = { "^Minimap", "^MiniMap", "^GameTime", "^TimeManager", "^QueueStatus", "^GarrisonLandingPage",
-	"^ExpansionLandingPage", "^AddonCompartment", "^Diel", "^MinimapCluster", "^LFG", "^Battlefield", "^HelpOpen" }
+	"^ExpansionLandingPage", "^AddonCompartment", "^Diel", "^MinimapCluster", "^Battlefield", "^HelpOpen",
+	-- Blizzard's own LFG frames only: "^LFG" alone also caught addons named LFG... (LFG Forever's LFGForeverMinimapButton)
+	"^LFGMinimap", "^LFGFrame", "^LFGEye", "^LFGList", "^LFGDungeon", "^LFGParent" }
 local NOT_BUTTONS = { "Pin", "Note", "Questie", "HandyNotes", "Gather", "TomTom", "Arrow", "POI", "Blip", "Node" }
 
 -- Is this child of the minimap an addon's minimap button?
