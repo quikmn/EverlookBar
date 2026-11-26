@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.3 (2026-11-26)
 - Minimap: when you switch on the zone name and your minimap is still in its starting corner, the minimap moves down a little so the zone name isn't hidden under the top bar.
 - Settings search: the sidebar lights the page of the top result while you search.
 
