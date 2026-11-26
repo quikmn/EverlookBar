@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Minimap: when you switch on the zone name and your minimap is still in its starting corner, the minimap moves down a little so the zone name isn't hidden under the top bar.
+- Settings search: the sidebar lights the page of the top result while you search.
+
 ## v0.4.2 (2026-11-23)
 - New installs put the minimap in the top-right corner instead of where the game left it. A minimap you already moved stays put.
 

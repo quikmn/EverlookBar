@@ -234,6 +234,8 @@ end
 function M:SetPieceOn(key, on)
 	if not M.ELEMENT[key] then return end
 	mdb().pieceOn[key] = on and true or false
+	-- a piece switched on next to a bar: the minimap makes room, so the piece is not under the bar
+	if on and self.running and not InCombatLockdown() and self:KeepClear() then self:ApplyFrame() end
 	self:ApplyElements()
 	if ns.Unlock then ns.Unlock:SyncMovers() end
 end
@@ -1005,6 +1007,14 @@ function M:KeepClear()
 	if not holder or self.stepAside then return end
 	local W, H = screenSize()
 	local w, h = self:ScreenSize()
+	local p = db.point
+	if not (type(p) == "table" and tonumber(p[1]) and tonumber(p[2])) then
+		-- never moved: its spot is the default one, which counts the pieces (the zone name over the map) and the bars;
+		-- the map goes there again rather than staying where an earlier default put it (under a top bar)
+		local hx, hy = holderCenter()
+		local dx, dy = self:Center()
+		return hx ~= nil and dx ~= nil and (math.abs(hx - dx) >= 0.5 or math.abs(hy - dy) >= 0.5)
+	end
 	local cx, cy = self:Center()
 	local x, y = M.SnapCenter(cx, cy, w, h, W, H, 0, self:Insets())
 	if math.abs(x - cx) < 0.5 and math.abs(y - cy) < 0.5 then return false end -- it is clear already
