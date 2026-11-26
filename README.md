@@ -25,6 +25,10 @@ spacing. Side bars stack their plugins. Plugins sit in left, centre and right gr
   Innkeeper, Banker, Auctioneer, Repair, Stable Master...). Right-click: untrack all. In combat the menu only shows.
   It does what the minimap's tracking button does, so that button can stay hidden. Settings: every tracked type, the
   first only, or just the icon.
+- **Flight timer**: on a flight path, where you're going and the time left (» Ironforge 1:42). It learns each route
+  from your own flights; on a route you haven't flown yet it counts down from an estimate (~1:42). The tooltip has
+  the route, the time left, how often you've flown it and your recent routes. Hidden on the ground. Optional chat
+  line when you land (off by default).
 - **Durability**: your most worn item in percent; every slot in the tooltip.
 - **Mail**: new mail or not, with the senders.
 - **Bags**: free and total slots; profession bags apart.

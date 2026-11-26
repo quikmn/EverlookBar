@@ -11,6 +11,7 @@ Every LibDataBroker plugin from any addon can go on a bar. Built in, each one sw
 - Professions: your skill in each one; click to open, coloured when it's time for the next rank at a trainer.
 - Performance: FPS and latency; memory and CPU per addon in the tooltip.
 - Location: zone, subzone and coordinates.
+- Flight timer: on a flight path, where you're going and the time left. Learns each route from your own flights; counts down from an estimate (~) until then. Hidden on the ground.
 - Durability: your most worn item; every slot in the tooltip.
 - Mail, Bags (profession bags apart), Quest log (38/45), Gold with this session's change, Calendar with invites, Clock.
 
