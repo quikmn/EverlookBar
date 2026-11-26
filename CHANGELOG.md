@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 (2026-11-26)
 - New plugin: **Flight timer**. On a flight path the bar shows where you're going and the time left (» Ironforge 1:42). It learns each route from your own flights; on a route you haven't flown yet it counts down from an estimate (~1:42). Hover it for the route, the time left, how often you've flown it and your recent routes. Hidden on the ground; switch it off on the Built-in page of `/ebar`. An optional chat line when you land ("Landed in Ironforge after 2:31") is off by default.
 - Minimap drawer: LFG Forever's minimap button is collected too.
 
