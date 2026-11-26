@@ -362,7 +362,11 @@ local function migrate(db)
 			p.cooking, p.firstAid, p.fishing = false, false, false
 		end
 	end
-	db.version = 4
+	if v < 5 and db.seenLayout then
+		-- 2026-11-26: the flight timer is placed once for players who had a layout (it hides on the ground)
+		ns.newModules.flight = true
+	end
+	db.version = 5
 end
 ns.Migrate = migrate -- tests
 

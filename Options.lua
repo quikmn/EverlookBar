@@ -147,6 +147,8 @@ modSetting("location", "zone", { type = "bool", label = "Show the zone" })
 modSetting("location", "subzone", { type = "bool", label = "Show the subzone (Tarren Mill, Southshore Inn...)" })
 modSetting("location", "coords", { type = "bool", label = "Show coordinates" })
 modSetting("location", "colorByPvP", { type = "bool", label = "Colour the zone by PvP status" })
+local FLIGHT_WORDS = ns.modules.flight.keywords
+modSetting("flight", "arrival", { type = "bool", label = "Flight timer: a chat line when you land (Landed in Ironforge after 2:31)", keywords = FLIGHT_WORDS })
 modSetting("bags", "style", { type = "choice", label = "Bag text", width = 200, choices = {
 	{ value = "free/total", text = "Free / total" }, { value = "free", text = "Free only" }, { value = "used/total", text = "Used / total" } } })
 modSetting("quests", "style", { type = "choice", label = "Quest log text", width = 200, choices = {
@@ -688,6 +690,8 @@ app:Section("modules", "Built-in", function(stack)
 	app:Widget(stack, "perf.fps"); app:Widget(stack, "perf.latency"); app:Widget(stack, "perf.memory"); app:Widget(stack, "perf.colors")
 	UI.Header(stack, "Location")
 	app:Widget(stack, "location.zone"); app:Widget(stack, "location.subzone"); app:Widget(stack, "location.coords"); app:Widget(stack, "location.colorbypvp")
+	UI.Header(stack, "Flight timer", "On a flight path: where to and the time left. It learns each route from your own flights; until then it counts down from an estimate (~).")
+	app:Widget(stack, "flight.arrival")
 	UI.Header(stack, "Bags, mail, gold")
 	app:Widget(stack, "bags.style"); app:Widget(stack, "bagGCD"); app:Widget(stack, "mail.hidewhennone"); app:Widget(stack, "gold.copper")
 	UI.Header(stack, "Quest log")

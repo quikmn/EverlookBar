@@ -344,7 +344,18 @@ C_Map = {
 		return { GetXY = function() return x, y end }
 	end,
 }
-UnitOnTaxi = function() return false end
+UnitOnTaxi = function() return MOCK.onTaxi or false end
+-- the flight map: MOCK.taxi = { mapID, nodes = { { slotIndex, nodeID, name, state }, ... }, routes = { [slot] = { {src, dst}, ... } } }
+MOCK.taxi = { nodes = {} }
+Enum.FlightPathState = { Current = 0, Reachable = 1, Unreachable = 2 }
+GetTaxiMapID = function() return MOCK.taxi.mapID end
+C_TaxiMap = { GetAllTaxiNodes = function() return MOCK.taxi.noC and error("no") or MOCK.taxi.nodes end }
+NumTaxiNodes = function() return #MOCK.taxi.nodes end
+TaxiNodeName = function(i) local n = MOCK.taxi.nodes[i]; return n and n.name or "" end
+TaxiNodeGetType = function(i) local n = MOCK.taxi.nodes[i]; return n and (n.state == 0 and "CURRENT" or "REACHABLE") or "NONE" end
+GetNumRoutes = function(slot) local r = MOCK.taxi.routes and MOCK.taxi.routes[slot]; return r and #r or 0 end
+TaxiGetNodeSlot = function(slot, h, src) local r = MOCK.taxi.routes[slot][h]; return src and r[1] or r[2] end
+TakeTaxiNode = function(slot) MOCK.tookTaxi = slot end
 MOCK.dur = { [1] = { 50, 60 }, [5] = { 10, 100 }, [16] = { 70, 70 } }
 GetInventoryItemDurability = function(slot) local d = MOCK.dur[slot]; if d then return d[1], d[2] end end
 HEADSLOT, CHESTSLOT, MAINHANDSLOT = "Head", "Chest", "Main Hand"

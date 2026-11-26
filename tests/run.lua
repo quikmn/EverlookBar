@@ -2444,6 +2444,191 @@ step("tracking: an existing profile is told once, not placed", function()
 end)
 
 ------------------------------------------------------------------------
+-- Flight timer
+------------------------------------------------------------------------
+local F = ns.modules.flight
+local function flightObj() return ldb:GetDataObjectByName("EverlookBar_Flight") end
+local function tickFor(secs) for _ = 1, math.floor(secs / 0.25 + 0.5) do MOCK.time = MOCK.time + 0.25; ns.Tick() end end
+local function atStormwind()
+	MOCK.taxi = { mapID = 1415, nodes = {
+		{ slotIndex = 1, nodeID = 2, name = "Stormwind, Elwynn", state = 0 },
+		{ slotIndex = 2, nodeID = 6, name = "Ironforge, Dun Morogh", state = 1 },
+		{ slotIndex = 3, nodeID = 4, name = "Sentinel Hill, Westfall", state = 1 },
+	}, routes = { [2] = { { 1, 2 } }, [3] = { { 1, 3 } } } }
+end
+local function takeOff(slot)
+	TakeTaxiNode(slot)
+	MOCK.time = MOCK.time + 1
+	MOCK.onTaxi = true
+	MOCK.Fire("PLAYER_CONTROL_LOST")
+end
+local function land()
+	MOCK.onTaxi = false
+	MOCK.Fire("PLAYER_CONTROL_GAINED")
+end
+local function fly(slot, secs) takeOff(slot); tickFor(secs); land() end
+
+step("flight: times, names and route keys", function()
+	eq(F.Format(102), "1:42"); eq(F.Format(35.4), "0:35"); eq(F.Format(-3), "0:00"); eq(F.Format(3725), "1:02:05")
+	eq(F.Short("Ironforge, Dun Morogh"), "Ironforge"); eq(F.Short("Booty Bay"), "Booty Bay")
+	eq(F.RouteKey(0, "A", "B", 2, 6), "id:2>6")
+	check(F.RouteKey(0, "Lakeshire", "Stormwind") ~= F.RouteKey(1, "Lakeshire", "Stormwind"), "same names on another continent are another route")
+end)
+
+step("flight: running average, outliers left out, a changed route taken after two", function()
+	local r = { n = 0 }
+	check(F.Learn(r, 100), "first flight learned"); eq(r.avg, 100); eq(r.n, 1)
+	check(F.Learn(r, 110), "close one learned"); eq(r.avg, 105); eq(r.n, 2)
+	check(not F.Learn(r, 400), "a disconnect-length flight is an outlier"); eq(r.n, 2); eq(r.avg, 105)
+	check(F.Learn(r, 104), "normal again"); eq(r.n, 3)
+	check(not F.Learn(r, 2), "too short"); check(not F.Learn(r, 99999), "too long")
+	check(not F.Learn(r, 180), "one changed time is an outlier")
+	check(F.Learn(r, 185), "a second that agrees: the route changed"); eq(r.avg, 182.5); eq(r.n, 2)
+	local big = { n = 0 }
+	for _ = 1, 30 do F.Learn(big, 100) end
+	F.Learn(big, 130)
+	eq(big.avg, 103, "after ten flights a new one counts a tenth")
+end)
+
+step("flight: estimates from the data: one hop, the hops the game flies, the shortest way", function()
+	local D = ns.FlightData
+	check(D and D.nodes[2] and D.nodes[6], "FlightData has Stormwind and Ironforge")
+	eq(F.Estimate(2, 6), D.hops[2][6], "direct hop")
+	local via
+	for n in pairs(D.hops[4]) do if n ~= 2 then via = n break end end
+	eq(F.Estimate(2, via, { 2, 4, via }), D.hops[2][4] + D.hops[4][via], "hops summed")
+	check(F.Shortest(2, 6) <= D.hops[2][6], "shortest is no longer than the direct hop")
+	check(F.Estimate(2, 99999) == nil, "unknown node: no estimate")
+	check(F.Estimate(nil, 6) == nil, "no start: no estimate")
+end)
+
+step("flight: hidden on the ground; an estimate counts down with ~, then your own time replaces it", function()
+	check(F.running, "on by default")
+	check(ns.db.placement.EverlookBar_Flight, "placed")
+	check(flightObj().ebarHidden == true, "hidden on the ground")
+	F.Reset(); ns:ModuleDB("flight").routes = {}
+	atStormwind()
+	local est = ns.FlightData.hops[2][6]
+	takeOff(2)
+	check(not flightObj().ebarHidden, "shown in the air")
+	eq(flightObj().text, "» Ironforge ~" .. F.Format(est), "estimate countdown")
+	tickFor(60)
+	eq(flightObj().text, "» Ironforge ~" .. F.Format(est - 60), "a minute later")
+	check(ns:ModuleDB("flight").current and ns:ModuleDB("flight").current.toID == 6, "saved for a /reload")
+	tickFor(170)
+	land()
+	check(flightObj().ebarHidden == true, "hidden after landing")
+	check(ns:ModuleDB("flight").current == nil, "nothing left to resume")
+	local r = ns:ModuleDB("flight").routes["id:2>6"]
+	check(r and r.n == 1, "learned")
+	eq(r.real, 230, "the real time"); eq(r.off, 230 - est, "how far off the estimate was")
+	eq(r.from, "Stormwind, Elwynn"); eq(r.to, "Ironforge, Dun Morogh")
+	-- the next flight counts down from your own time, without the ~
+	takeOff(2)
+	eq(flightObj().text, "» Ironforge 3:50", "your own time")
+	land()
+	eq(r.n, 1, "a 0 s flight is not learned")
+end)
+
+step("flight: tooltip says estimate or your flights, lists recent routes", function()
+	F.Reset()
+	atStormwind()
+	local lines = {}
+	local tip = { AddLine = function(_, t) lines[#lines + 1] = tostring(t) end,
+		AddDoubleLine = function(_, a, b) lines[#lines + 1] = tostring(a) .. " | " .. tostring(b) end }
+	takeOff(2)
+	F.Tooltip(tip)
+	local all = table.concat(lines, "\n")
+	check(all:find("From | Stormwind, Elwynn", 1, true), "from")
+	check(all:find("To | Ironforge, Dun Morogh", 1, true), "to")
+	check(all:find("(your flights: 1)", 1, true), "your flights")
+	check(all:find("Time left", 1, true), "time left")
+	check(all:find("Flown before | once", 1, true), "times flown")
+	check(all:find("Stormwind » Ironforge | 3:50  (1x)", 1, true), "recent routes")
+	land()
+	takeOff(3)
+	lines = {}
+	F.Tooltip(tip)
+	check(table.concat(lines, "\n"):find("(estimate)", 1, true), "estimate")
+	land()
+	lines = {}
+	F.Tooltip(tip)
+	check(table.concat(lines, "\n"):find("Not on a flight", 1, true), "on the ground")
+end)
+
+step("flight: a route nobody knows counts up (first time); without C_TaxiMap names still work", function()
+	F.Reset()
+	MOCK.taxi = { noC = true, nodes = {
+		{ slotIndex = 1, name = "Nowhere Camp, Somewhere", state = 0 },
+		{ slotIndex = 2, name = "New Outpost, Far Away", state = 1 },
+	} }
+	takeOff(2)
+	tickFor(35)
+	eq(flightObj().text, "» New Outpost 0:35 (first time)", "counting up")
+	land()
+	local key = next(ns:ModuleDB("flight").routes, nil)
+	for k in pairs(ns:ModuleDB("flight").routes) do if k:find("New Outpost", 1, true) then key = k end end
+	check(key and not key:find("^id:"), "keyed by names and continent: " .. tostring(key))
+	takeOff(2)
+	eq(flightObj().text, "» New Outpost 0:35", "learned: counts down now")
+	land()
+	-- names in the data give the node IDs when C_TaxiMap is missing
+	F.Reset()
+	MOCK.taxi = { noC = true, nodes = { { slotIndex = 1, name = "Stormwind, Elwynn", state = 0 }, { slotIndex = 2, name = "Ironforge, Dun Morogh", state = 1 } } }
+	takeOff(2)
+	eq(ns:ModuleDB("flight").current.key, "id:2>6", "node IDs from the names")
+	land()
+end)
+
+step("flight: a /reload in the air resumes the countdown; that flight is not learned", function()
+	F.Reset()
+	atStormwind()
+	local r = ns:ModuleDB("flight").routes["id:2>6"]
+	local n0 = r.n
+	takeOff(2)
+	ns:ModuleDB("flight").current.startedAt = time() - 100 -- took off 100 s before the reload
+	F.Reset()
+	MOCK.Fire("PLAYER_ENTERING_WORLD")
+	eq(flightObj().text, "» Ironforge " .. F.Format(r.avg - 100), "resumed from the saved start")
+	tickFor(50)
+	land()
+	eq(r.n, n0, "not learned")
+	-- landed during the loading screen: forgotten quietly
+	ns:ModuleDB("flight").current = { startedAt = time() - 50, to = "Ironforge, Dun Morogh", key = "id:2>6" }
+	F.Reset()
+	MOCK.Fire("PLAYER_ENTERING_WORLD")
+	check(ns:ModuleDB("flight").current == nil, "forgotten")
+	check(flightObj().ebarHidden == true, "hidden")
+	-- a flight not started from the map: no destination, counts up
+	MOCK.onTaxi = true; MOCK.Fire("PLAYER_CONTROL_LOST")
+	eq(flightObj().text, "In flight 0:00")
+	land()
+end)
+
+step("flight: picked but never took off is dropped; the chat line on landing is off by default", function()
+	F.Reset()
+	atStormwind()
+	TakeTaxiNode(3)
+	tickFor(20)
+	MOCK.onTaxi = true; MOCK.Fire("PLAYER_CONTROL_LOST")
+	eq(flightObj().text, "In flight 0:00", "the old pick was dropped")
+	land()
+	check(ns:ModuleDB("flight").arrival == false, "off by default")
+	local before = #MOCK.log
+	fly(2, 200)
+	for i = before + 1, #MOCK.log do check(not MOCK.log[i]:find("Landed", 1, true), "no chat line") end
+	slash("flight.arrival on")
+	fly(2, 231)
+	check(logHas("Landed in Ironforge after 3:51"), "chat line: " .. lastLog())
+	slash("flight.arrival off")
+	slash("flight.enabled off")
+	check(not F.running, "switched off")
+	slash("flight.enabled on")
+	check(F.running, "back on")
+	check(flightObj().ebarHidden == true, "hidden again on the ground")
+end)
+
+------------------------------------------------------------------------
 -- Cost
 ------------------------------------------------------------------------
 step("cost: idle ticks make no garbage; time per tick", function()

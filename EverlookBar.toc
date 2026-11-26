@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: EverlookDB Bar
-## Notes: Info bars for LibDataBroker plugins (XP, reputation, professions, performance, location, durability, mail, bags, quests, gold, clock, calendar) and a clean minimap.
+## Notes: Info bars for LibDataBroker plugins (XP, reputation, professions, performance, location, flight timer, durability, mail, bags, quests, gold, clock, calendar) and a clean minimap.
 ## Author: quikmn
 ## Version: 0.4.3
 ## SavedVariables: EverlookBarDB
@@ -22,6 +22,8 @@ Modules\XP.lua
 Modules\Reputation.lua
 Modules\Performance.lua
 Modules\Location.lua
+FlightData.lua
+Modules\Flight.lua
 Modules\Durability.lua
 Modules\Mail.lua
 Modules\Bags.lua
